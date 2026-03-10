@@ -6,10 +6,14 @@ class Login extends CI_Controller {
     }
 
     public function ingresar(){
-        $usuario = $this->input->post('usuario');
+        $usuario  = $this->input->post('usuario');
         $password = md5($this->input->post('password'));
 
-        // Hacemos un JOIN para traer los datos de la sucursal de una vez
+        // Logs básicos de entrada
+        log_message('debug', 'Login intento. Usuario enviado: ' . $usuario);
+        log_message('debug', 'Password (md5) generado: ' . $password);
+
+        // Armamos la consulta
         $this->db->select('u.*, s.nombre as sucursal_nombre');
         $this->db->from('usuarios u');
         $this->db->join('sucursales s', 'u.id_sucursal = s.id');
@@ -19,8 +23,14 @@ class Login extends CI_Controller {
 
         $query = $this->db->get();
 
+        // Log de la consulta ejecutada y resultado
+        log_message('debug', 'Login SQL: ' . $this->db->last_query());
+        log_message('debug', 'Login filas encontradas: ' . $query->num_rows());
+
         if($query->num_rows() > 0){
             $user = $query->row();
+
+            log_message('info', 'Login correcto para usuario ID: ' . $user->id);
 
             // Ahora guardamos TODO lo necesario en la sesión
             $this->session->set_userdata([
@@ -28,13 +38,15 @@ class Login extends CI_Controller {
                 'usuario'         => $user->usuario,
                 'nombre_completo' => $user->nombre,
                 'rol'             => $user->rol,
-                'id_sucursal'     => $user->id_sucursal,     // ID para las consultas SQL
-                'sucursal_nombre' => $user->sucursal_nombre  // Nombre para mostrar en la interfaz
+                'id_sucursal'     => $user->id_sucursal,
+                'sucursal_nombre' => $user->sucursal_nombre
             ]);
 
             redirect('dashboard');
 
         } else {
+            log_message('error', 'Login fallido para usuario: ' . $usuario);
+
             $this->session->set_flashdata('login_error', 'Usuario o contraseña incorrectos');
             redirect('login');
         }

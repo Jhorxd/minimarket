@@ -246,5 +246,33 @@ class Ventas extends CI_Controller {
         <div class="center" style="font-size:9px;">Conserve su comprobante</div>
         ';
     }
+
+
+    public function venta_index()
+{
+    $id_sucursal = $this->session->userdata('id_sucursal');
+
+    // Traemos las ventas con info básica
+    $ventas = $this->db->query("
+        SELECT v.id,
+               v.fecha_registro,
+               v.total,
+               v.metodo_pago,
+               u.nombre   AS cajero
+        FROM ventas v
+        JOIN usuarios u ON u.id = v.id_usuario
+        WHERE v.id_sucursal = ?
+        ORDER BY v.fecha_registro DESC
+    ", [$id_sucursal])->result();
+
+    $data['ventas'] = $ventas;
+    $data['titulo'] = 'Historial de Ventas';
+
+    $this->load->view('layouts/header', $data);
+    $this->load->view('layouts/sidebar');
+    $this->load->view('ventas/venta_index', $data);
+    $this->load->view('layouts/footer');
+}
+
     
 }

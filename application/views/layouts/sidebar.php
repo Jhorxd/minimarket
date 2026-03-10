@@ -185,22 +185,52 @@ p {
 
 <nav class="mt-2">
 <ul class="nav nav-pills nav-sidebar flex-column">
-
+   <li class="nav-item">
+        <a href="<?= base_url('ventas/pos') ?>" class="nav-link">
+            <i class="nav-icon fas fa-cash-register"></i>
+            <p>Punto de Venta</p>
+        </a>
+    </li>
 <li class="nav-item">
 <a href="<?= base_url('dashboard') ?>" class="nav-link">
 <i class="nav-icon fas fa-home"></i>
 <p>Dashboard</p>
 </a>
 </li>
-
+<li class="nav-item">
+    <a href="<?= base_url('clientes/cliente_index') ?>" class="nav-link">
+        <i class="nav-icon fas fa-user"></i>
+        <p>Clientes</p>
+    </a>
+</li>
+<li class="nav-item">
+    <a href="<?= base_url('proveedores/proveedor_index') ?>" class="nav-link">
+        <i class="nav-icon fas fa-truck"></i>
+        <p>Proveedores</p>
+    </a>
+</li>
 <?php if ($this->session->userdata('rol') == 'admin'): ?>
+<li class="nav-item">
+    <a href="<?= base_url('ventas/venta_index') ?>" class="nav-link">
+        <i class="nav-icon fas fa-cash-register"></i>
+        <p>Ventas</p>
+    </a>
+</li>
 
-    <li class="nav-item">
-        <a href="<?= base_url('ventas/pos') ?>" class="nav-link">
-            <i class="nav-icon fas fa-cash-register"></i>
-            <p>Punto de Venta</p>
-        </a>
-    </li>
+<li class="nav-item">
+    <a href="<?= base_url('compras/compras_index') ?>" class="nav-link">
+        <i class="nav-icon fas fa-cash-register"></i>
+        <p>Compras</p>
+    </a>
+</li>
+<li class="nav-item">
+    <a href="<?= base_url('almacen/stock_index') ?>" class="nav-link">
+        <i class="nav-icon fas fa-box"></i>
+        <p>Stock Almacén</p>
+    </a>
+</li>
+
+
 
     <li class="nav-item">
         <a href="<?= base_url('productos') ?>" class="nav-link">
