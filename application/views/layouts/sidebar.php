@@ -201,6 +201,13 @@ p {
         </a>
     </li>
 
+    <li class="nav-item">
+        <a href="<?= base_url('caja') ?>" class="nav-link">
+            <i class="nav-icon fas fa-cash-register"></i>
+            <p>Control de Cajas</p>
+        </a>
+    </li>
+
 <?php endif; ?>
 
 <?php if ($this->session->userdata('rol') == 'vendedor'): ?>
