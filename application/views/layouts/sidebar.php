@@ -194,6 +194,14 @@ p {
 </li>
 
 <?php if ($this->session->userdata('rol') == 'admin'): ?>
+
+    <li class="nav-item">
+        <a href="<?= base_url('ventas/pos') ?>" class="nav-link">
+            <i class="nav-icon fas fa-cash-register"></i>
+            <p>Punto de Venta</p>
+        </a>
+    </li>
+
     <li class="nav-item">
         <a href="<?= base_url('productos') ?>" class="nav-link">
             <i class="nav-icon fas fa-file-invoice-dollar"></i> 
@@ -207,6 +215,7 @@ p {
             <p>Control de Cajas</p>
         </a>
     </li>
+
 
 <?php endif; ?>
 

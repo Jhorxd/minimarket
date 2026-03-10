@@ -28,4 +28,31 @@ class Producto_model extends CI_Model {
     $this->db->where('id_sucursal', $id_sucursal);
     return $this->db->update('productos', $data);
     }
+
+    public function get_productos_pos($busqueda = '') {
+
+        $this->db->select('id, codigo_barras, nombre, precio_venta, stock, imagen');
+
+        $this->db->from('productos');
+
+
+        if (!empty($busqueda)) {
+
+            $this->db->group_start();
+
+            $this->db->like('nombre', $busqueda);
+
+            $this->db->or_like('codigo_barras', $busqueda);
+
+            $this->db->group_end();
+
+        }
+
+
+
+        $query = $this->db->get();
+
+        return $query->result_array();
+
+    }
 }

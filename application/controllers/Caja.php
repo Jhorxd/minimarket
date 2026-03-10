@@ -48,12 +48,18 @@ class Caja extends CI_Controller {
         redirect('caja');
     }
 
-    public function cerrar($id) {
-        // Aquí luego sumaremos las ventas reales para comparar
-        $monto_cierre = $this->input->post('monto_cierre') ?? 0; 
-        
+    public function cerrar($id)
+    {
+        // Calcular total real de ventas de esta caja
+        $ventas_totales = $this->db->query(
+            "SELECT COALESCE(SUM(total), 0) as total FROM ventas WHERE id_caja = ?",
+            [$id]
+        )->row()->total;
+
+        $caja = $this->db->get_where('cajas', ['id' => $id])->row();
+
         $data = [
-            'monto_cierre' => $monto_cierre,
+            'monto_cierre' => $caja->monto_apertura + $ventas_totales,
             'fecha_cierre' => date('Y-m-d H:i:s'),
             'estado'       => 'Cerrada'
         ];
@@ -62,4 +68,5 @@ class Caja extends CI_Controller {
         $this->session->unset_userdata('id_caja');
         redirect('caja');
     }
+
 }
