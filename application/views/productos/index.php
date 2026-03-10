@@ -18,49 +18,49 @@
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-widest border-b border-slate-100">
-                            <th class="px-6 py-4 font-bold">Código / Producto</th>
-                            <th class="px-6 py-4 font-bold text-center">Categoría</th>
-                            <th class="px-6 py-4 font-bold text-right">Precio Venta</th>
-                            <th class="px-6 py-4 font-bold text-center">Stock</th>
-                            <th class="px-6 py-4 font-bold text-right">Acciones</th>
+                        <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-widest border-b border-slate-100">
+                            <th class="px-4 py-3 font-bold">Código / Producto</th>
+                            <th class="px-4 py-3 font-bold text-center">Categoría</th>
+                            <th class="px-4 py-3 font-bold text-right">Precio Venta</th>
+                            <th class="px-4 py-3 font-bold text-center">Stock</th>
+                            <th class="px-4 py-3 font-bold text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         <?php if(!empty($productos)): foreach($productos as $p): ?>
                         <tr class="hover:bg-slate-50 transition-colors group">
-                            <td class="px-6 py-4">
-                                <div class="font-bold text-slate-800 text-base"><?= $p->nombre ?></div>
-                                <div class="text-xs text-slate-400 font-mono tracking-wider"><?= $p->codigo_barras ?></div>
+                            <td class="px-4 py-3">
+                                <div class="font-bold text-slate-800 text-sm"><?= $p->nombre ?></div>
+                                <div class="text-[10px] text-slate-400 font-mono tracking-wider"><?= $p->codigo_barras ?></div>
                             </td>
-                            <td class="px-6 py-4 text-center">
-                                <span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase">
+                            <td class="px-4 py-3 text-center">
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase">
                                     <?= $p->categoria ?>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right">
-                                <span class="text-lg font-black text-slate-900">S/ <?= number_format($p->precio_venta, 2) ?></span>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-black text-slate-900">S/ <?= number_format($p->precio_venta, 2) ?></span>
                             </td>
-                            <td class="px-6 py-4 text-center">
+                            <td class="px-4 py-3 text-center">
                                 <?php $color_stock = ($p->stock <= $p->stock_minimo) ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50'; ?>
-                                <span class="px-4 py-2 rounded-lg font-black <?= $color_stock ?>">
+                                <span class="px-3 py-1 rounded-lg text-xs font-black <?= $color_stock ?>">
                                     <?= number_format($p->stock, 0) ?>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="flex justify-end gap-2">
-                                    <a href="<?= base_url('productos/editar/'.$p->id) ?>" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                                        <i class="fas fa-edit"></i>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex justify-end gap-1">
+                                    <a href="<?= base_url('productos/editar/'.$p->id) ?>" class="p-1.5 text-slate-400 hover:text-blue-600 transition-colors">
+                                        <i class="fas fa-edit text-sm"></i>
                                     </a>
-                                    <a href="<?= base_url('productos/eliminar/'.$p->id) ?>" onclick="return confirm('¿Eliminar producto?')" class="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                                        <i class="fas fa-trash-alt"></i>
+                                    <a href="<?= base_url('productos/eliminar/'.$p->id) ?>" onclick="return confirm('¿Eliminar producto?')" class="p-1.5 text-slate-400 hover:text-red-600 transition-colors">
+                                        <i class="fas fa-trash-alt text-sm"></i>
                                     </a>
                                 </div>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
                         <tr>
-                            <td colspan="5" class="px-6 py-20 text-center text-slate-400 italic">
+                            <td colspan="5" class="px-4 py-12 text-center text-slate-400 italic text-sm">
                                 No hay productos registrados en esta sucursal.
                             </td>
                         </tr>
@@ -69,5 +69,6 @@
                 </table>
             </div>
         </div>
+
     </div>
 </div>
