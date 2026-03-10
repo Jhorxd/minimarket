@@ -7,23 +7,23 @@
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="<?= base_url() ?>plugins/fontawesome-free/css/all.min.css">
-    
+
     <!-- AdminLTE CSS -->
     <link rel="stylesheet" href="<?= base_url() ?>dist/css/adminlte.min.css">
-    
+
     <!-- Select2 -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+
     <style>
         /* Tailwind config para AdminLTE */
         * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -35,6 +35,28 @@
 <!-- Site wrapper -->
 <div class="wrapper">
 
-<!-- /.navbar -->
+<!-- Navbar SOLO en pantallas pequeñas/medias -->
+<nav class="main-header navbar navbar-expand navbar-white navbar-light d-lg-none">
+    <!-- Left navbar links -->
+    <ul class="navbar-nav">
+        <!-- Botón hamburguesa que abre/cierra el sidebar -->
+        <li class="nav-item">
+            <a class="nav-link" data-widget="pushmenu" href="#" role="button">
+                <i class="fas fa-bars"></i>
+            </a>
+        </li>
 
-<!-- Main Sidebar Container (tu sidebar va aquí) -->
+        <li class="nav-item d-none d-sm-inline-block">
+            <a href="<?= base_url('dashboard') ?>" class="nav-link">Inicio</a>
+        </li>
+    </ul>
+
+    <!-- Right navbar links (opcional) -->
+    <ul class="navbar-nav ml-auto">
+        <!-- aquí podrías poner usuario, notificaciones, etc. -->
+    </ul>
+</nav>
+
+    <!-- /.navbar -->
+
+    <!-- Main Sidebar Container (tu sidebar va aquí en sidebar.php) -->
