@@ -37,33 +37,37 @@
     </header>
 
     <div class="bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <div class="overflow-x-auto custom-scrollbar">
+    <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left min-w-[800px]">
                 <thead>
                     <tr class="bg-slate-50/50 text-slate-500 text-[10px] uppercase font-black tracking-tighter border-b border-slate-100">
-                        <th class="px-8 py-5">Cajero / Sucursal</th>
-                        <th class="px-6 py-5 text-center">Fecha Apertura</th>
-                        <th class="px-6 py-5 text-center">Monto Inicial</th>
-                        <th class="px-6 py-5 text-center">Estado</th>
-                        <th class="px-8 py-5 text-right">Acciones</th>
+                        <th class="px-6 py-3">Cajero / Sucursal</th>
+                        <th class="px-4 py-3 text-center">Fecha Apertura</th>
+                        <th class="px-4 py-3 text-center">Monto Inicial</th>
+                        <th class="px-4 py-3 text-center">Monto Final</th>
+                        <th class="px-4 py-3 text-center">Estado</th>
+                        <th class="px-6 py-3 text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach($cajas as $c): ?>
                     <tr class="hover:bg-blue-50/30 transition-colors group">
-                        <td class="px-8 py-5">
+                        <td class="px-6 py-3">
                             <div class="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors"><?= $c->cajero ?></div>
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight"><?= $this->session->userdata('sucursal_nombre') ?></div>
                         </td>
-                        <td class="px-6 py-4 text-center text-xs md:text-sm text-slate-500 font-mono">
+                        <td class="px-4 py-3 text-center text-xs text-slate-500 font-mono">
                             <div class="bg-slate-100 rounded-lg py-1 px-2 inline-block italic">
                                 <?= date('d/m/Y H:i', strtotime($c->fecha_apertura)) ?>
                             </div>
                         </td>
-                        <td class="px-6 py-4 text-center font-black text-slate-700">
+                        <td class="px-4 py-3 text-center font-black text-slate-700 text-sm">
                             <span class="text-slate-300 mr-1 text-xs">S/</span><?= number_format($c->monto_apertura, 2) ?>
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-4 py-3 text-center font-black text-slate-700 text-sm">
+                            <span class="text-slate-300 mr-1 text-xs">S/</span><?= number_format($c->monto_cierre ?? 0, 2) ?>
+                        </td>
+                        <td class="px-4 py-3 text-center">
                             <?php if($c->estado == 'Abierta'): ?>
                                 <span class="inline-flex items-center px-3 py-1 bg-emerald-100 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse border border-emerald-200">
                                     <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></span> Abierta
@@ -74,17 +78,17 @@
                                 </span>
                             <?php endif; ?>
                         </td>
-                        <td class="px-8 py-4 text-right">
+                        <td class="px-6 py-3 text-right">
                             <?php if($c->estado == 'Abierta' && $c->id_usuario == $this->session->userdata('id')): ?>
                                 <button @click="openModalCierre = true" 
                                         type="button"
-                                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border border-red-100 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm active:scale-90">
+                                        class="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm active:scale-90">
                                     <i class="fas fa-power-off"></i>
                                     Cerrar Caja
                                 </button>
                             <?php elseif($c->estado == 'Cerrada'): ?>
-                                <button class="p-3 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
-                                    <i class="fas fa-file-invoice-dollar text-lg"></i>
+                                <button class="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
+                                    <i class="fas fa-file-invoice-dollar"></i>
                                 </button>
                             <?php endif; ?>
                         </td>
@@ -94,6 +98,7 @@
             </table>
         </div>
     </div>
+
 
     <div x-show="openModal" 
         class="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 

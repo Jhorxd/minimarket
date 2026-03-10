@@ -14,7 +14,17 @@ class Caja extends CI_Controller {
         
         $data['cajas'] = $this->Caja_model->get_historial_cajas($id_sucursal);
         $data['caja_activa'] = $this->Caja_model->get_caja_abierta($this->session->userdata('id'), $id_sucursal);
-        
+
+        // Calcular ventas totales de la caja activa
+        if ($data['caja_activa']) {
+            $ventas_totales = $this->db->query(
+                "SELECT COALESCE(SUM(total), 0) as total FROM ventas WHERE id_caja = ?",
+                [$data['caja_activa']->id]
+            )->row()->total;
+
+            $data['caja_activa']->ventas_totales = $ventas_totales;
+        }
+
         // Traer usuarios de la sucursal para el modal
         $this->db->where('id_sucursal', $id_sucursal);
         $this->db->where('estado', 1);
@@ -25,6 +35,7 @@ class Caja extends CI_Controller {
         $this->load->view('caja/index', $data);
         $this->load->view('layouts/footer');
     }
+
 
     public function abrir() {
         // Vista del formulario de apertura

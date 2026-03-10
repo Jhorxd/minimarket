@@ -267,54 +267,83 @@ function posSystem() {
             this.totalVenta = t.toFixed(2);
         },
 
-        procesarVenta() {
-            if (this.carrito.length === 0) return Swal.fire('Carrito Vacío', 'Agrega productos', 'error');
-            
-            if (this.metodoPago === 'efectivo' && (!this.montoRecibido || parseFloat(this.montoRecibido) < parseFloat(this.totalVenta))) {
-                return Swal.fire('Monto insuficiente', 'Ingresa el monto recibido', 'warning');
-            }
+procesarVenta() {
+    if (this.carrito.length === 0) return Swal.fire('Carrito Vacío', 'Agrega productos', 'error');
+    
+    if (this.metodoPago === 'efectivo' && (!this.montoRecibido || parseFloat(this.montoRecibido) < parseFloat(this.totalVenta))) {
+        return Swal.fire('Monto insuficiente', 'Ingresa el monto recibido', 'warning');
+    }
 
-            const resumenPago = this.metodoPago === 'efectivo' 
-                ? `<br><span class="text-xs text-slate-500">Recibido: S/ ${parseFloat(this.montoRecibido).toFixed(2)} · Vuelto: S/ ${this.vuelto}</span>`
-                : `<br><span class="text-xs text-slate-500">Pago con: ${this.metodoPago}</span>`;
+    const resumenPago = this.metodoPago === 'efectivo' 
+        ? `<br><span style="font-size:12px; color:#64748b;">Recibido: S/ ${parseFloat(this.montoRecibido).toFixed(2)} · Vuelto: S/ ${this.vuelto}</span>`
+        : `<br><span style="font-size:12px; color:#64748b;">Pago con: ${this.metodoPago}</span>`;
 
-            Swal.fire({
-                title: '¿Confirmar Venta?',
-                html: `Total a cobrar: <b>S/ ${this.totalVenta}</b>${resumenPago}`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#2563eb',
-                confirmButtonText: 'Sí, generar ticket'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    fetch('<?= base_url('ventas/guardar') ?>', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            carrito: this.carrito,
-                            total: this.totalVenta,
-                            metodo_pago: this.metodoPago,
-                            monto_recibido: this.metodoPago === 'efectivo' ? this.montoRecibido : this.totalVenta,
-                            vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00'
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            Swal.fire('Venta exitosa', 'Comprobante generado', 'success');
-                            this.carrito = [];
-                            this.totalVenta = '0.00';
-                            this.metodoPago = 'efectivo';
-                            this.montoRecibido = '';
-                            this.fetchProductos();
-                        } else {
-                            Swal.fire('Error', data.message || 'No se pudo registrar la venta', 'error');
-                        }
-                    })
-                    .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor', 'error'));
+    Swal.fire({
+        title: '¿Confirmar Venta?',
+        html: `Total a cobrar: <b>S/ ${this.totalVenta}</b>${resumenPago}`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#2563eb',
+        confirmButtonText: 'Sí, generar ticket'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch('<?= base_url('ventas/guardar') ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    carrito: this.carrito,
+                    total: this.totalVenta,
+                    metodo_pago: this.metodoPago,
+                    monto_recibido: this.metodoPago === 'efectivo' ? this.montoRecibido : this.totalVenta,
+                    vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00'
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    this.carrito = [];
+                    this.totalVenta = '0.00';
+                    this.metodoPago = 'efectivo';
+                    this.montoRecibido = '';
+                    this.fetchProductos();
+
+                    const ticketUrl = `<?= base_url('ventas/ticket/') ?>${data.id_venta}`;
+
+                    Swal.fire({
+                        title: `✅ Ticket #${String(data.id_venta).padStart(6, '0')}`,
+                        html: `
+                            <iframe src="${ticketUrl}" 
+                                    style="width:100%; height:420px; border:none; border-radius:8px;"
+                                    id="iframe-ticket">
+                            </iframe>
+                            <div style="margin-top:12px; display:flex; gap:8px; justify-content:center;">
+                                <button onclick="document.getElementById('iframe-ticket').contentWindow.print()"
+                                        style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer;">
+                                    🖨️ Imprimir
+                                </button>
+                                <a href="${ticketUrl}" target="_blank"
+                                style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#f1f5f9; color:#475569; border-radius:10px; font-weight:700; font-size:12px; text-decoration:none;">
+                                    ↗ Abrir en pestaña
+                                </a>
+                            </div>
+                        `,
+                        showConfirmButton: false,
+                        showCancelButton: true,
+                        cancelButtonText: 'Cerrar',
+                        cancelButtonColor: '#94a3b8',
+                        width: 420,
+                        padding: '1.5rem'
+                    });
                 }
-            });
+                else {
+                    Swal.fire('Error', data.message || 'No se pudo registrar la venta', 'error');
+                }
+            })
+            .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor', 'error'));
         }
+    });
+}
+
     }
 }
 </script>
