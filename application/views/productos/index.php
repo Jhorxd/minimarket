@@ -1,4 +1,5 @@
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300">
+<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0">
+
     <div class="p-4 sm:p-6 lg:p-10 w-full">
         
         <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
