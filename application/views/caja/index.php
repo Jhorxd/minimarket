@@ -12,7 +12,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 px-4 pb-4 pt-16 md:px-8 md:pb-8 md:pt-8 lg:px-8 lg:pb-8 lg:pt-8" 
+<div class="md:ml-64 min-h-screen bg-slate-50 px-4 pb-4 pt-16 md:px-8 md:pb-8 md:pt-8 lg:px-8 lg:pb-4 lg:pt-4" 
      x-data="{ openModal: false, openModalCierre: false }">
 
     
