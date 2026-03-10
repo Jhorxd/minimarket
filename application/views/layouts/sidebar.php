@@ -195,9 +195,9 @@ p {
 
 <?php if ($this->session->userdata('rol') == 'admin'): ?>
     <li class="nav-item">
-        <a href="<?= base_url('ventas/nueva_cotizacion') ?>" class="nav-link">
+        <a href="<?= base_url('productos') ?>" class="nav-link">
             <i class="nav-icon fas fa-file-invoice-dollar"></i> 
-            <p><small class="d-md-inline d-none">Nueva</small> Cotización</p>
+            <p>Productos</p>
         </a>
     </li>
 
