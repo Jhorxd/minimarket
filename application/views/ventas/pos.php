@@ -5,18 +5,20 @@
             <!-- Productos → en móvil va abajo (order-2), en PC va primero (lg:order-1) -->
             <div class="w-full lg:w-8/12 flex flex-col gap-3 order-2 lg:order-1">
                 <div class="bg-white rounded-xl shadow-sm p-3 border border-slate-200">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-slate-400"></i>
-                        </div>
-                        <input type="text" 
-                               class="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
-                               placeholder="Buscar por nombre o código..." 
-                               x-model="busqueda" 
-                               @input.debounce.300ms="fetchProductos()"
-                               @keydown.enter="codigoBarrasDirecto()">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-slate-400"></i>
                     </div>
+                    <input type="text" 
+                        x-ref="inputBusqueda"
+                        class="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
+                        placeholder="Buscar por nombre o código..." 
+                        x-model="busqueda" 
+                        @input="onInputBusqueda()"
+                        @keydown.enter="codigoBarrasDirecto()">
                 </div>
+            </div>
+
 
                 <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar max-h-[420px] lg:max-h-none">
                     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 pb-6">
@@ -172,6 +174,7 @@ function posSystem() {
         isMobile: window.innerWidth < 1024,
         metodoPago: 'efectivo',
         montoRecibido: '',
+        _debounceTimer: null,
 
         get productosFiltrados() {
             const limite = this.isMobile ? 8 : 40;
@@ -191,13 +194,25 @@ function posSystem() {
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
             });
-            
+
             window.addEventListener('keydown', (e) => {
-                if (e.key === 'F9') { 
-                    e.preventDefault(); 
-                    this.procesarVenta(); 
+                if (e.key === 'F9') {
+                    e.preventDefault();
+                    this.procesarVenta();
+                }
+                // Si el foco NO está en el input, redirigir al buscador
+                if (e.key.length === 1 && document.activeElement !== this.$refs.inputBusqueda) {
+                    this.$refs.inputBusqueda.focus();
                 }
             });
+        },
+
+        // Reemplaza el @input.debounce.300ms del input
+        onInputBusqueda() {
+            clearTimeout(this._debounceTimer);
+            this._debounceTimer = setTimeout(() => {
+                this.fetchProductos();
+            }, 300);
         },
 
         fetchProductos() {
@@ -208,12 +223,36 @@ function posSystem() {
                 .catch(err => console.error("❌ Error:", err));
         },
 
+        // ✅ CLAVE: hace su propio fetch y agrega cuando ya tiene la respuesta
         codigoBarrasDirecto() {
-            if (this.listaProductos.length === 1) {
-                this.agregarItem(this.listaProductos[0]);
-                this.busqueda = '';
-                this.fetchProductos();
-            }
+            if (!this.busqueda.trim()) return;
+
+            const url = `<?= base_url('ventas/buscar_productos_ajax') ?>?term=${encodeURIComponent(this.busqueda)}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    this.listaProductos = data;
+
+                    if (data.length === 1) {
+                        // Producto único encontrado → agregar directo
+                        this.agregarItem(data[0]);
+                        this.busqueda = '';
+                        this.fetchProductos();
+                    } else if (data.length === 0) {
+                        // Código no registrado
+                        Swal.fire({
+                            title: '❌ No encontrado',
+                            text: `El código "${this.busqueda}" no está registrado`,
+                            icon: 'warning',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        this.busqueda = '';
+                    }
+                    // Si hay más de 1 resultado → el cajero elige manualmente
+                })
+                .catch(err => console.error("❌ Error scanner:", err));
         },
 
         agregarItem(p) {
@@ -228,12 +267,12 @@ function posSystem() {
                     Swal.fire('Límite de Stock', 'No puedes agregar más del stock disponible', 'error');
                 }
             } else {
-                this.carrito.push({ 
-                    id: p.id, 
-                    nombre: p.nombre, 
+                this.carrito.push({
+                    id: p.id,
+                    nombre: p.nombre,
                     precio: p.precio_venta,
-                    cantidad: 1, 
-                    stock: p.stock 
+                    cantidad: 1,
+                    stock: p.stock
                 });
             }
             this.calcularTotal();
@@ -267,82 +306,81 @@ function posSystem() {
             this.totalVenta = t.toFixed(2);
         },
 
-procesarVenta() {
-    if (this.carrito.length === 0) return Swal.fire('Carrito Vacío', 'Agrega productos', 'error');
-    
-    if (this.metodoPago === 'efectivo' && (!this.montoRecibido || parseFloat(this.montoRecibido) < parseFloat(this.totalVenta))) {
-        return Swal.fire('Monto insuficiente', 'Ingresa el monto recibido', 'warning');
-    }
+        procesarVenta() {
+            if (this.carrito.length === 0) return Swal.fire('Carrito Vacío', 'Agrega productos', 'error');
 
-    const resumenPago = this.metodoPago === 'efectivo' 
-        ? `<br><span style="font-size:12px; color:#64748b;">Recibido: S/ ${parseFloat(this.montoRecibido).toFixed(2)} · Vuelto: S/ ${this.vuelto}</span>`
-        : `<br><span style="font-size:12px; color:#64748b;">Pago con: ${this.metodoPago}</span>`;
+            if (this.metodoPago === 'efectivo' && (!this.montoRecibido || parseFloat(this.montoRecibido) < parseFloat(this.totalVenta))) {
+                return Swal.fire('Monto insuficiente', 'Ingresa el monto recibido', 'warning');
+            }
 
-    Swal.fire({
-        title: '¿Confirmar Venta?',
-        html: `Total a cobrar: <b>S/ ${this.totalVenta}</b>${resumenPago}`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#2563eb',
-        confirmButtonText: 'Sí, generar ticket'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            fetch('<?= base_url('ventas/guardar') ?>', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    carrito: this.carrito,
-                    total: this.totalVenta,
-                    metodo_pago: this.metodoPago,
-                    monto_recibido: this.metodoPago === 'efectivo' ? this.montoRecibido : this.totalVenta,
-                    vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00'
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    this.carrito = [];
-                    this.totalVenta = '0.00';
-                    this.metodoPago = 'efectivo';
-                    this.montoRecibido = '';
-                    this.fetchProductos();
+            const resumenPago = this.metodoPago === 'efectivo'
+                ? `<br><span style="font-size:12px; color:#64748b;">Recibido: S/ ${parseFloat(this.montoRecibido).toFixed(2)} · Vuelto: S/ ${this.vuelto}</span>`
+                : `<br><span style="font-size:12px; color:#64748b;">Pago con: ${this.metodoPago}</span>`;
 
-                    const ticketUrl = `<?= base_url('ventas/ticket/') ?>${data.id_venta}`;
+            Swal.fire({
+                title: '¿Confirmar Venta?',
+                html: `Total a cobrar: <b>S/ ${this.totalVenta}</b>${resumenPago}`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                confirmButtonText: 'Sí, generar ticket'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('<?= base_url('ventas/guardar') ?>', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            carrito: this.carrito,
+                            total: this.totalVenta,
+                            metodo_pago: this.metodoPago,
+                            monto_recibido: this.metodoPago === 'efectivo' ? this.montoRecibido : this.totalVenta,
+                            vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00'
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            this.carrito = [];
+                            this.totalVenta = '0.00';
+                            this.metodoPago = 'efectivo';
+                            this.montoRecibido = '';
+                            this.fetchProductos();
 
-                    Swal.fire({
-                        title: `✅ Ticket #${String(data.id_venta).padStart(6, '0')}`,
-                        html: `
-                            <iframe src="${ticketUrl}" 
-                                    style="width:100%; height:420px; border:none; border-radius:8px;"
-                                    id="iframe-ticket">
-                            </iframe>
-                            <div style="margin-top:12px; display:flex; gap:8px; justify-content:center;">
-                                <button onclick="document.getElementById('iframe-ticket').contentWindow.print()"
-                                        style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer;">
-                                    🖨️ Imprimir
-                                </button>
-                                <a href="${ticketUrl}" target="_blank"
-                                style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#f1f5f9; color:#475569; border-radius:10px; font-weight:700; font-size:12px; text-decoration:none;">
-                                    ↗ Abrir en pestaña
-                                </a>
-                            </div>
-                        `,
-                        showConfirmButton: false,
-                        showCancelButton: true,
-                        cancelButtonText: 'Cerrar',
-                        cancelButtonColor: '#94a3b8',
-                        width: 420,
-                        padding: '1.5rem'
-                    });
+                            const ticketUrl = `<?= base_url('ventas/ticket/') ?>${data.id_venta}`;
+
+                            Swal.fire({
+                                title: `✅ Ticket #${String(data.id_venta).padStart(6, '0')}`,
+                                html: `
+                                    <iframe src="${ticketUrl}" 
+                                            style="width:100%; height:420px; border:none; border-radius:8px;"
+                                            id="iframe-ticket">
+                                    </iframe>
+                                    <div style="margin-top:12px; display:flex; gap:8px; justify-content:center;">
+                                        <button onclick="document.getElementById('iframe-ticket').contentWindow.print()"
+                                                style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer;">
+                                            🖨️ Imprimir
+                                        </button>
+                                        <a href="${ticketUrl}" target="_blank"
+                                           style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#f1f5f9; color:#475569; border-radius:10px; font-weight:700; font-size:12px; text-decoration:none;">
+                                            ↗ Abrir en pestaña
+                                        </a>
+                                    </div>
+                                `,
+                                showConfirmButton: false,
+                                showCancelButton: true,
+                                cancelButtonText: 'Cerrar',
+                                cancelButtonColor: '#94a3b8',
+                                width: 420,
+                                padding: '1.5rem'
+                            });
+                        } else {
+                            Swal.fire('Error', data.message || 'No se pudo registrar la venta', 'error');
+                        }
+                    })
+                    .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor', 'error'));
                 }
-                else {
-                    Swal.fire('Error', data.message || 'No se pudo registrar la venta', 'error');
-                }
-            })
-            .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor', 'error'));
+            });
         }
-    });
-}
 
     }
 }
