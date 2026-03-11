@@ -1,25 +1,38 @@
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script> <!-- [web:14] -->
+<script src="https://unpkg.com/@ericblade/quagga2@latest/dist/quagga.min.js"></script>
+
 <div class="content-wrapper bg-slate-100 !pt-0 !mt-0">
     <div class="min-h-screen px-2 pb-2 lg:px-4 lg:pb-4 pt-16 lg:pt-4" x-data="posSystem()">
         <div class="flex flex-col lg:flex-row gap-4 h-full lg:h-[calc(100vh-30px)]">
             
             <!-- Productos → en móvil va abajo (order-2), en PC va primero (lg:order-1) -->
             <div class="w-full lg:w-8/12 flex flex-col gap-3 order-2 lg:order-1">
+                
+                <!-- Buscador + botón escanear -->
                 <div class="bg-white rounded-xl shadow-sm p-3 border border-slate-200">
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-slate-400"></i>
+                    <div class="relative flex items-center gap-2">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-slate-400"></i>
+                        </div>
+                        <input type="text" 
+                               x-ref="inputBusqueda"
+                               class="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
+                               placeholder="Buscar por nombre o código..." 
+                               x-model="busqueda" 
+                               @input="onInputBusqueda()"
+                               @keydown.enter="codigoBarrasDirecto()">
+
+                        <!-- Botón solo para móviles -->
+                        <button x-show="isMobileDevice"
+                                @click="abrirScannerMovil()"
+                                class="shrink-0 px-3 py-2 rounded-lg bg-emerald-500 text-white text-xs font-bold flex items-center gap-1">
+                            <i class="fas fa-camera"></i>
+                            ESCANEAR
+                        </button>
                     </div>
-                    <input type="text" 
-                        x-ref="inputBusqueda"
-                        class="block w-full pl-10 pr-3 py-2.5 border-none bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
-                        placeholder="Buscar por nombre o código..." 
-                        x-model="busqueda" 
-                        @input="onInputBusqueda()"
-                        @keydown.enter="codigoBarrasDirecto()">
                 </div>
-            </div>
 
-
+                <!-- Listado de productos -->
                 <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar max-h-[420px] lg:max-h-none">
                     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 pb-6">
                         <template x-for="prod in productosFiltrados" :key="prod.id">
@@ -98,7 +111,6 @@
 
                     <!-- Footer: método de pago + total + botón -->
                     <div class="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-
                         <!-- Método de pago -->
                         <div>
                             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Método de Pago</p>
@@ -149,8 +161,42 @@
             </div>
 
         </div>
+
+        <div x-show="mostrarScanner" 
+            x-transition.opacity
+            class="fixed inset-0 bg-slate-900/90 flex items-center justify-center z-[100] p-4">
+            
+            <div class="bg-white rounded-2xl p-4 w-full max-w-sm overflow-hidden shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-tighter">Escáner de Barras</h3>
+                    <button @click="cerrarScannerMovil()" class="text-slate-400 hover:text-red-500">
+                        <i class="fas fa-times-circle text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="relative bg-black rounded-xl overflow-hidden aspect-square border-4 border-slate-100">
+                    <div id="reader" class="w-full h-full object-cover"></div>
+                    
+                    <div class="absolute inset-0 border-[40px] border-black/40 pointer-events-none"></div>
+                    <div class="absolute inset-x-8 top-1/2 -translate-y-1/2 h-[2px] bg-red-500 shadow-[0_0_8px_red] animate-pulse"></div>
+                    <div class="absolute inset-8 border-2 border-emerald-400 rounded-lg pointer-events-none"></div>
+                </div>
+
+                <p class="text-[10px] font-bold text-slate-500 mt-4 text-center uppercase tracking-widest">
+                    Alinea el código con la línea roja
+                </p>
+                
+                <button @click="cerrarScannerMovil()"
+                        class="mt-4 w-full bg-slate-800 text-white text-xs font-bold py-3 rounded-xl active:scale-95 transition-transform">
+                    CANCELAR
+                </button>
+            </div>
+        </div>
+
+
     </div>
 </div>
+
 
 
 <style>
@@ -176,6 +222,10 @@ function posSystem() {
         montoRecibido: '',
         _debounceTimer: null,
 
+        isMobileDevice: /(android|iphone|ipad|mobile)/i.test(navigator.userAgent),
+        mostrarScanner: false,
+        html5QrCode: null,
+
         get productosFiltrados() {
             const limite = this.isMobile ? 8 : 40;
             return this.listaProductos.slice(0, limite);
@@ -196,18 +246,29 @@ function posSystem() {
             });
 
             window.addEventListener('keydown', (e) => {
+                // 1. Ejecutar venta con F9
                 if (e.key === 'F9') {
                     e.preventDefault();
                     this.procesarVenta();
                 }
-                // Si el foco NO está en el input, redirigir al buscador
-                if (e.key.length === 1 && document.activeElement !== this.$refs.inputBusqueda) {
+
+                // 2. Control inteligente del Foco
+                // Obtenemos qué elemento tiene el foco actualmente
+                const elementoActivo = document.activeElement.tagName;
+
+                // Solo enfocamos el buscador si:
+                // - Es una tecla de carácter (e.key.length === 1)
+                // - NO estamos ya escribiendo en un INPUT, TEXTAREA o SELECT
+                if (e.key.length === 1 && 
+                    elementoActivo !== 'INPUT' && 
+                    elementoActivo !== 'TEXTAREA' && 
+                    elementoActivo !== 'SELECT') {
+                    
                     this.$refs.inputBusqueda.focus();
                 }
             });
         },
 
-        // Reemplaza el @input.debounce.300ms del input
         onInputBusqueda() {
             clearTimeout(this._debounceTimer);
             this._debounceTimer = setTimeout(() => {
@@ -223,7 +284,6 @@ function posSystem() {
                 .catch(err => console.error("❌ Error:", err));
         },
 
-        // ✅ CLAVE: hace su propio fetch y agrega cuando ya tiene la respuesta
         codigoBarrasDirecto() {
             if (!this.busqueda.trim()) return;
 
@@ -235,12 +295,10 @@ function posSystem() {
                     this.listaProductos = data;
 
                     if (data.length === 1) {
-                        // Producto único encontrado → agregar directo
                         this.agregarItem(data[0]);
                         this.busqueda = '';
                         this.fetchProductos();
                     } else if (data.length === 0) {
-                        // Código no registrado
                         Swal.fire({
                             title: '❌ No encontrado',
                             text: `El código "${this.busqueda}" no está registrado`,
@@ -250,10 +308,100 @@ function posSystem() {
                         });
                         this.busqueda = '';
                     }
-                    // Si hay más de 1 resultado → el cajero elige manualmente
                 })
                 .catch(err => console.error("❌ Error scanner:", err));
         },
+
+abrirScannerMovil() {
+    this.mostrarScanner = true;
+    // Variable de control interna para esta sesión de escaneo
+    let escaneoFinalizado = false;
+
+    this.$nextTick(() => {
+        Quagga.init({
+            inputStream: {
+                type: "LiveStream",
+                target: document.querySelector("#reader"),
+                constraints: {
+                    width: { min: 640 },
+                    height: { min: 480 },
+                    facingMode: "environment"
+                },
+                area: { top: "15%", right: "10%", left: "10%", bottom: "15%" },
+            },
+            decoder: {
+                // Eliminamos formatos raros que causan falsos positivos
+                readers: ["code_128_reader", "ean_reader", "ean_8_reader"]
+            },
+            locate: true
+        }, (err) => {
+            if (err) {
+                Swal.fire('Error', 'No se pudo iniciar la cámara', 'error');
+                this.mostrarScanner = false;
+                return;
+            }
+            Quagga.start();
+        });
+
+        Quagga.onDetected((result) => {
+            // 1. Si ya procesamos uno, ignoramos el resto
+            if (escaneoFinalizado) return;
+
+            // 2. Extraer el código
+            const code = result.codeResult.code;
+
+            // 3. VALIDACIÓN CRÍTICA: Que no esté vacío y tenga longitud mínima
+            // La mayoría de códigos de barras tienen al menos 4-5 dígitos
+            if (code && code.trim() !== "" && code.length >= 4) {
+                
+                // 4. Marcamos como finalizado para detener el bucle
+                escaneoFinalizado = true;
+                
+                // Feedback visual y sonoro
+                if (navigator.vibrate) navigator.vibrate(100);
+                this.reproducirBeep(); // Si quieres añadir el sonido
+
+                // 5. Ejecutar lógica de negocio
+                this.busqueda = code;
+                
+                // Detenemos la cámara antes de buscar para liberar recursos
+                Quagga.stop();
+                
+                this.codigoBarrasDirecto();
+                this.cerrarScannerMovil();
+            }
+        });
+    });
+},
+
+// Función auxiliar para emitir un pitido de confirmación
+reproducirBeep() {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Nota La (A5)
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.1);
+},
+
+cerrarScannerMovil() {
+    this.mostrarScanner = false;
+    if (typeof Quagga !== 'undefined') {
+        Quagga.stop();
+        // Limpiamos el contenido del reader para apagar la cámara físicamente
+        const reader = document.querySelector("#reader");
+        if (reader) reader.innerHTML = "";
+    }
+},
+
+
 
         agregarItem(p) {
             if (parseFloat(p.stock) <= 0) {
@@ -361,7 +509,7 @@ function posSystem() {
                                             🖨️ Imprimir
                                         </button>
                                         <a href="${ticketUrl}" target="_blank"
-                                           style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#f1f5f9; color:#475569; border-radius:10px; font-weight:700; font-size:12px; text-decoration:none;">
+                                           style="display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:#f1f5f9; color:#475569; border-radius:10px; font-weight:700; text-decoration:none;">
                                             ↗ Abrir en pestaña
                                         </a>
                                     </div>
@@ -381,7 +529,6 @@ function posSystem() {
                 }
             });
         }
-
     }
 }
 </script>
