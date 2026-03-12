@@ -72,16 +72,16 @@ class Stock_model extends CI_Model {
     // Historial de kardex por producto
 public function get_kardex_producto($id_producto, $id_sucursal)
 {
-    // Nota: LEFT JOIN a ventas y compras, según doc_tipo/doc_id
-    return $this->db->query("
+    // Log de entrada de parámetros
+    log_message('debug', 'get_kardex_producto() - ID Producto: ' . $id_producto . ' | ID Sucursal: ' . $id_sucursal);
+
+        $sql = "
         SELECT  k.*,
-                -- Código interno de referencia
                 CASE 
                     WHEN k.doc_tipo = 'Venta'  THEN CONCAT('NV-', LPAD(v.id, 6, '0'))
                     WHEN k.doc_tipo = 'Compra' THEN CONCAT('NC-', LPAD(co.id, 6, '0'))
                     ELSE ''
                 END AS documento_ref,
-                -- Nombre del cliente o proveedor
                 CASE 
                     WHEN k.doc_tipo = 'Venta' 
                         THEN IFNULL(cli.nombre, 'Cliente Mostrador')
@@ -91,17 +91,26 @@ public function get_kardex_producto($id_producto, $id_sucursal)
                 END AS tercero_nombre
         FROM kardex k
         LEFT JOIN ventas v
-               ON v.id_cliente = k.doc_id AND k.doc_tipo = 'Venta'
+            ON v.id = k.doc_id AND k.doc_tipo = 'Venta'
         LEFT JOIN clientes cli
-               ON cli.id_cliente = v.id_cliente
+            ON cli.id_cliente = v.id_cliente
         LEFT JOIN compras co
-               ON co.id_proveedor = k.doc_id AND k.doc_tipo = 'Compra'
+            ON co.id = k.doc_id AND k.doc_tipo = 'Compra'
         LEFT JOIN proveedores prov
-               ON prov.id_proveedor = co.id_proveedor
+            ON prov.id_proveedor = co.id_proveedor
         WHERE k.id_producto = ?
-          AND k.id_sucursal = ?
+        AND k.id_sucursal = ?
         ORDER BY k.fecha DESC, k.id DESC
-    ", [$id_producto, $id_sucursal])->result();
-}
+        ";
 
+    // Log de la consulta
+    log_message('debug', 'SQL Query get_kardex_producto: ' . $sql);
+
+    $query = $this->db->query($sql, [$id_producto, $id_sucursal]);
+
+    // Log del número de resultados
+    log_message('debug', 'get_kardex_producto() - Filas encontradas: ' . $query->num_rows());
+
+    return $query->result();
+}
 }

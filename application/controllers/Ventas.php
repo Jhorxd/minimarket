@@ -97,8 +97,10 @@ class Ventas extends CI_Controller {
         $this->db->insert('kardex', [
             'id_sucursal'     => $id_sucursal,
             'id_producto'     => $id_producto,
-            'tipo_movimiento' => 'salida',
-            'motivo'          => 'Venta #' . $id_venta,
+            'tipo_movimiento' => 'Salida',
+            'motivo'          => 'Venta',
+            'doc_tipo' => 'Venta',
+            'doc_id' => $id_venta,
             'cantidad'        => $cantidad,
             'stock_resultante' => $stock_actual,
             'fecha'           => date('Y-m-d H:i:s')

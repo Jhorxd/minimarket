@@ -42,7 +42,7 @@ class Login extends CI_Controller {
                 'sucursal_nombre' => $user->sucursal_nombre
             ]);
 
-            redirect('dashboard');
+            redirect('ventas/pos');
 
         } else {
             log_message('error', 'Login fallido para usuario: ' . $usuario);

@@ -191,12 +191,14 @@ p {
             <p>Punto de Venta</p>
         </a>
     </li>
+<!--
 <li class="nav-item">
 <a href="<?= base_url('dashboard') ?>" class="nav-link">
 <i class="nav-icon fas fa-home"></i>
 <p>Dashboard</p>
 </a>
 </li>
+-->
 <li class="nav-item">
     <a href="<?= base_url('clientes/cliente_index') ?>" class="nav-link">
         <i class="nav-icon fas fa-user"></i>
