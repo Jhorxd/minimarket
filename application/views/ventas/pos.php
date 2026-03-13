@@ -162,10 +162,11 @@
 
         </div>
 
-        <div x-show="mostrarScanner" 
+        <div x-show="mostrarScanner"
+            x-cloak
             x-transition.opacity
             class="fixed inset-0 bg-slate-900/90 flex items-center justify-center z-[100] p-4">
-            
+        
             <div class="bg-white rounded-2xl p-4 w-full max-w-sm overflow-hidden shadow-2xl">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-sm font-black text-slate-800 uppercase tracking-tighter">Escáner de Barras</h3>
@@ -208,6 +209,11 @@
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     /* Quitar flechas del input number para estética */
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+[x-cloak] {
+    display: none !important;
+}
+
 </style>
 
 <script>
