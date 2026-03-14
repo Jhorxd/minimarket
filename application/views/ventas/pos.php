@@ -45,8 +45,10 @@
                                 </div>
 
                                 <div class="h-28 mb-2 flex items-center justify-center bg-slate-50 rounded-lg overflow-hidden">
-                                    <img :src="prod.imagen ? '<?= base_url('uploads/productos/') ?>' + prod.imagen : 'https://placehold.co/200x200?text=Sin+Imagen'" 
-                                         class="max-h-full object-contain group-hover:scale-110 transition-transform">
+                                    <img :src="prod.imagen 
+                                            ? '<?= base_url('uploads/productos/') ?>' + prod.imagen + '?v=' + (prod.version || '1') 
+                                            : 'https://placehold.co/200x200?text=Sin+Imagen'" 
+                                        class="max-h-full object-contain group-hover:scale-110 transition-transform">
                                 </div>
 
                                 <div class="flex flex-col flex-1">

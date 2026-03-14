@@ -6,7 +6,11 @@ class Producto_model extends CI_Model {
     }
 
     public function insertar($data) {
-        return $this->db->insert('productos', $data);
+        if ($this->db->insert('productos', $data)) {
+            // Devuelve el último ID insertado en la base de datos
+            return $this->db->insert_id();
+        }
+        return false;
     }
 
     public function get_producto($id, $id_sucursal) {
