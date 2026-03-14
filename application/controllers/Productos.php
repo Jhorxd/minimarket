@@ -33,8 +33,7 @@ class Productos extends CI_Controller {
 
     // Guardar el producto en la base de datos
 public function guardar() {
-    // 1. Recibir datos básicos
-    $id_sucursal = $this->session->userdata('id_sucursal'); // Lo guardamos en una variable para reusarlo
+    $id_sucursal = $this->session->userdata('id_sucursal');
     
     $data = [
         'codigo_barras' => $this->input->post('codigo_barras'),
@@ -45,23 +44,19 @@ public function guardar() {
         'precio_venta'  => $this->input->post('precio_venta'),
         'stock'         => $this->input->post('stock'),
         'stock_minimo'  => $this->input->post('stock_minimo'),
-        'id_sucursal'   => $id_sucursal
+        'id_sucursal'   => $id_sucursal,
+        'version'       => time() 
     ];
 
-    // 2. Insertar el producto y obtener el ID generado
+    // 1. Insertar primero para obtener el ID
     $id_producto = $this->Producto_model->insertar($data);
 
     if ($id_producto) {
-        // 3. Verificar si se subió una imagen
         if (!empty($_FILES['imagen']['name'])) {
             
-            // Creamos la carpeta si no existe
             $path = './uploads/productos/';
-            if (!is_dir($path)) {
-                mkdir($path, 0777, true);
-            }
+            if (!is_dir($path)) { mkdir($path, 0777, true); }
 
-            // Configuración de subida
             $extension = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
             $nombre_archivo = $id_producto . "." . $extension; 
 
@@ -69,17 +64,56 @@ public function guardar() {
             $config['file_name']     = $nombre_archivo;
             $config['allowed_types'] = 'gif|jpg|png|jpeg|webp';
             $config['overwrite']     = TRUE;
+            $config['max_size']      = '10240'; 
 
-            $this->load->library('upload', $config);
+            $this->load->library('upload');
+            $this->upload->initialize($config);
 
             if ($this->upload->do_upload('imagen')) {
-                // 4. ACTUALIZACIÓN CORREGIDA: Pasamos los 3 argumentos que pide tu modelo
-                // Argumento 1: ID del producto
-                // Argumento 2: ID de la sucursal
-                // Argumento 3: Array con los datos (el nombre de la imagen)
-                $this->Producto_model->actualizar($id_producto, $id_sucursal, ['imagen' => $nombre_archivo]);
+                $uploadData = $this->upload->data();
+                $full_path = $uploadData['full_path'];
+
+                $this->load->library('image_lib');
+
+                // --- 2. CORREGIR ROTACIÓN SEGÚN EXIF ---
+                $exif = @exif_read_data($full_path);
+                if($exif && isset($exif['Orientation'])) {
+                    $ort = $exif['Orientation'];
+                    $degrees = 0;
+
+                    if($ort == 6) $degrees = 270; // 90 grados a la derecha
+                    if($ort == 8) $degrees = 90;  // 90 grados a la izquierda
+                    if($ort == 3) $degrees = 180; // Invertido
+
+                    if($degrees != 0) {
+                        $config_r['image_library'] = 'gd2';
+                        $config_r['source_image']  = $full_path;
+                        $config_r['rotation_angle'] = $degrees;
+                        $this->image_lib->initialize($config_r);
+                        $this->image_lib->rotate();
+                        $this->image_lib->clear();
+                    }
+                }
+
+                // --- 3. COMPRESIÓN Y REDIMENSIÓN ---
+                $config_img['image_library']  = 'gd2';
+                $config_img['source_image']   = $full_path;
+                $config_img['maintain_ratio'] = TRUE;
+                $config_img['width']          = 800;
+                $config_img['height']         = 800;
+                $config_img['quality']        = '60%'; 
+
+                $this->image_lib->initialize($config_img);
+                $this->image_lib->resize();
+                $this->image_lib->clear();
+
+                // Actualizamos el registro con el nombre final de la imagen y versión real
+                $this->Producto_model->actualizar($id_producto, $id_sucursal, [
+                    'imagen' => $uploadData['file_name'],
+                    'version' => time()
+                ]);
             } else {
-                $error_upload = $this->upload->display_errors();
+                $error_upload = $this->upload->display_errors('', '');
                 $this->session->set_flashdata('warning', 'Producto guardado, pero la imagen falló: ' . $error_upload);
             }
         }
@@ -116,7 +150,6 @@ public function guardar() {
 public function actualizar($id) {
     $id_sucursal = $this->session->userdata('id_sucursal');
     
-    // 1. Datos básicos del formulario
     $data = [
         'codigo_barras' => $this->input->post('codigo_barras'),
         'nombre'        => $this->input->post('nombre'),
@@ -128,42 +161,73 @@ public function actualizar($id) {
         'stock_minimo'  => $this->input->post('stock_minimo')
     ];
 
-    // 2. Lógica para la imagen (solo si se selecciona una nueva)
     if (!empty($_FILES['imagen']['name'])) {
-        
         $path = './uploads/productos/';
-        if (!is_dir($path)) {
-            mkdir($path, 0777, true);
-        }
+        if (!is_dir($path)) { mkdir($path, 0777, true); }
 
         $extension = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
-        $nombre_archivo = $id . "." . $extension; // Mantenemos el mismo ID como nombre
+        $nombre_archivo = $id . "." . $extension; 
 
         $config['upload_path']   = $path;
         $config['file_name']     = $nombre_archivo;
         $config['allowed_types'] = 'gif|jpg|png|jpeg|webp';
-        $config['overwrite']     = TRUE; // Sobrescribe la imagen anterior
+        $config['overwrite']     = TRUE;
+        $config['max_size']      = '10240'; 
 
         $this->load->library('upload', $config);
 
-            if ($this->upload->do_upload('imagen')) {
-                $data['imagen'] = $nombre_archivo;
-                // Forzamos un cambio de versión para romper el caché solo de este producto
-                $data['version'] = time(); 
-            } else {
-            // Opcional: Manejar error de subida
-            $error = $this->upload->display_errors();
-            $this->session->set_flashdata('warning', 'Producto actualizado, pero la imagen no: ' . $error);
+        if ($this->upload->do_upload('imagen')) {
+            $uploadData = $this->upload->data();
+            $full_path = $uploadData['full_path'];
+
+            // --- CORRECCIÓN DE ROTACIÓN MANUAL ---
+            $this->load->library('image_lib');
+            
+            // Leemos los datos EXIF para ver si la foto está rotada
+            $exif = @exif_read_data($full_path);
+            if($exif && isset($exif['Orientation'])) {
+                $ort = $exif['Orientation'];
+                $degrees = 0;
+
+                if($ort == 6) $degrees = 270; // Rotar 90 a la derecha
+                if($ort == 8) $degrees = 90;  // Rotar 90 a la izquierda
+                if($ort == 3) $degrees = 180; // Rotar 180
+
+                if($degrees != 0) {
+                    $config_r['image_library'] = 'gd2';
+                    $config_r['source_image']  = $full_path;
+                    $config_r['rotation_angle'] = $degrees;
+                    $this->image_lib->initialize($config_r);
+                    $this->image_lib->rotate();
+                    $this->image_lib->clear();
+                }
+            }
+
+            // --- COMPRESIÓN Y REDIMENSIÓN ---
+            $config_img['image_library']  = 'gd2';
+            $config_img['source_image']   = $full_path;
+            $config_img['maintain_ratio'] = TRUE;
+            $config_img['width']          = 800;
+            $config_img['height']         = 800;
+            $config_img['quality']        = '60%'; 
+
+            $this->image_lib->initialize($config_img);
+            $this->image_lib->resize();
+            $this->image_lib->clear();
+
+            $data['imagen'] = $uploadData['file_name'];
+            $data['version'] = time(); 
+        } else {
+            $this->session->set_flashdata('error', 'Error al subir imagen: ' . $this->upload->display_errors('', ''));
         }
     }
 
-    // 3. Ejecutar la actualización con los 3 parámetros que pide tu modelo
     if ($this->Producto_model->actualizar($id, $id_sucursal, $data)) {
         $this->session->set_flashdata('success', 'Producto actualizado correctamente');
     } else {
-        $this->session->set_flashdata('error', 'Error al actualizar el producto');
+        $this->session->set_flashdata('error', 'Error al guardar en la base de datos');
     }
-    
+
     redirect('productos');
 }
 }

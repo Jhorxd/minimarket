@@ -55,7 +55,7 @@
 
     <div class="space-y-6">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" 
-            x-data="imagePreview('<?= $p->imagen ? base_url('uploads/productos/'.$p->imagen.'?v='.filemtime('./uploads/productos/'.$p->imagen)) : '' ?>')">
+            x-data="imagePreview('<?= $p->imagen ? base_url('uploads/productos/'.$p->imagen.'?v='.$p->version) : '' ?>')">
             
             <label class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block text-center">
                 Imagen del Producto
@@ -66,27 +66,31 @@
                     class="hidden" x-ref="imageInput" @change="updatePreview">
                 
                 <div @click="$refs.imageInput.click()" 
-                    class="w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all hover:border-blue-400 cursor-pointer relative">
+                    class="w-full min-h-[350px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all hover:border-blue-400 cursor-pointer relative">
                     
                     <template x-if="url">
-                        <img :src="url" class="w-full h-full object-cover">
+                        <img :src="url" class="w-full h-[350px] object-contain p-2">
                     </template>
 
                     <template x-if="!url">
                         <div class="text-center p-4">
-                            <i class="fas fa-image text-4xl text-slate-200 mb-3"></i>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Click para cambiar</p>
+                            <i class="fas fa-cloud-upload-alt text-5xl text-slate-200 mb-3"></i>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Click para subir o capturar</p>
                         </div>
                     </template>
                 </div>
 
                 <template x-if="url">
                     <button type="button" @click="url = null; $refs.imageInput.value = ''" 
-                            class="absolute -top-2 -right-2 bg-red-500 text-white w-8 h-8 rounded-full shadow-lg flex items-center justify-center hover:bg-red-600 transition-colors">
+                            class="absolute -top-3 -right-3 bg-red-500 text-white w-9 h-9 rounded-full shadow-xl flex items-center justify-center hover:bg-red-600 transition-colors border-4 border-white">
                         <i class="fas fa-times"></i>
                     </button>
                 </template>
             </div>
+            
+            <p class="text-[9px] text-slate-400 mt-3 text-center italic">
+                Tip: Las fotos verticales de celular se ajustarán automáticamente.
+            </p>
         </div>
 
         <div class="bg-slate-900 p-8 rounded-2xl shadow-xl shadow-slate-200 space-y-6">
