@@ -1,17 +1,83 @@
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0">
+<!-- Alpine.js for data handling -->
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-    <div class="p-4 sm:p-6 lg:p-10 w-full">
+<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0"
+     x-data="{ 
+        items: <?= htmlspecialchars(json_encode($kardex), ENT_QUOTES, 'UTF-8') ?>,
+        productName: '<?= addslashes($producto->nombre) ?>',
+        exportExcel() {
+            if (this.items.length === 0) return;
+            const data = this.items.map(i => ({
+                'Fecha': i.fecha,
+                'Tipo': i.tipo_movimiento,
+                'Motivo': i.motivo,
+                'Doc. Ref.': i.documento_ref,
+                'Tercero': i.tercero_nombre || '-',
+                'Cantidad': i.cantidad,
+                'Stock Resultante': i.stock_resultante
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Kardex');
+            XLSX.writeFile(wb, 'Kardex_' + this.productName.replace(/ /g, '_') + '_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.xlsx');
+        },
+        exportPDF() {
+            if (this.items.length === 0) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            doc.setFontSize(20);
+            doc.setTextColor(30, 41, 59);
+            doc.text('KARDEX DE MOVIMIENTOS', 14, 20);
+            
+            doc.setFontSize(12);
+            doc.text('Producto: ' + this.productName, 14, 28);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text('Generado el: ' + new Date().toLocaleString(), 14, 34);
+
+            const tableData = this.items.map(i => [
+                i.fecha,
+                i.tipo_movimiento,
+                i.motivo,
+                i.documento_ref,
+                i.tercero_nombre || '-',
+                i.cantidad,
+                i.stock_resultante
+            ]);
+
+            doc.autoTable({
+                startY: 40,
+                head: [['Fecha', 'Tipo', 'Motivo', 'Doc. Ref.', 'Tercero', 'Cant.', 'Stock Res.']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { 
+                    fillColor: [30, 41, 59],
+                    textColor: 255,
+                    fontSize: 10,
+                    fontStyle: 'bold'
+                },
+                styles: { fontSize: 9, cellPadding: 3 },
+                alternateRowStyles: { fillColor: [248, 250, 252] }
+            });
+
+            doc.save('Kardex_' + this.productName.replace(/ /g, '_') + '.pdf');
+        }
+     }">
+
+    <div class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
 
         <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
             <div>
-                <nav class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <nav class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">
                     Gestión de Almacén
                 </nav>
-                <h1 class="text-3xl font-black text-slate-800">
+                <h1 class="text-2xl font-black text-slate-800 tracking-tighter">
                     Ajustar Stock
                 </h1>
-                <p class="mt-1 text-xs text-slate-400">
-                    <?= htmlspecialchars($producto->nombre); ?> · Stock actual: <?= number_format($producto->stock, 2); ?>
+                <p class="mt-2 text-xs text-slate-400 font-medium italic">
+                    <?= htmlspecialchars($producto->nombre); ?> · Stock actual: <span class="font-black text-slate-600"><?= number_format($producto->stock, 2); ?></span>
                 </p>
             </div>
         </header>
@@ -72,12 +138,22 @@
                 </form>
             </div>
 
-            <!-- Historial de kardex -->
-            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden h-fit">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
                         Historial de movimientos (Kardex)
                     </h2>
+                    
+                    <div class="flex items-center gap-2" x-show="items.length > 0">
+                        <button @click="exportExcel()" 
+                            class="px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg font-black uppercase tracking-widest text-[8px] hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-file-excel text-[10px]"></i> Excel
+                        </button>
+                        <button @click="exportPDF()" 
+                            class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg font-black uppercase tracking-widest text-[8px] hover:bg-rose-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-file-pdf text-[10px]"></i> PDF
+                        </button>
+                    </div>
                 </div>
 
              <div class="overflow-x-auto max-h-[420px]">

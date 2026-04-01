@@ -8,6 +8,8 @@ class Almacen extends CI_Controller {
         parent::__construct();
         // aquí podrías validar sesión / rol
         $this->load->model('Stock_model', 'stock_m');
+        $this->load->model('Categoria_model');
+        $this->load->model('Almacen_model');
     }
 
     // Listado principal de stock
@@ -17,6 +19,8 @@ class Almacen extends CI_Controller {
 
         $data['titulo']    = 'Stock de Almacén';
         $data['productos'] = $this->stock_m->get_stock_sucursal($id_sucursal);
+        $data['categorias'] = $this->Categoria_model->get_categorias();
+        $data['almacenes']  = $this->Almacen_model->get_almacenes();
 
         $this->load->view('layouts/header', $data);
         $this->load->view('layouts/sidebar');

@@ -9,7 +9,9 @@ class Productos extends CI_Controller {
         if (!$this->session->userdata('id')) {
             redirect('login');
         }
-        $this->load->model('Producto_model'); // Asegúrate de crear este modelo
+        $this->load->model('Producto_model');
+        $this->load->model('Categoria_model');
+        $this->load->model('Almacen_model');
     }
 
     // Listado de productos de LA SUCURSAL actual
@@ -25,9 +27,11 @@ class Productos extends CI_Controller {
 
     // Vista del formulario de nuevo producto
     public function nuevo() {
+        $data['categorias'] = $this->Categoria_model->get_categorias();
+        $data['almacenes']  = $this->Almacen_model->get_almacenes();
         $this->load->view('layouts/header');
         $this->load->view('layouts/sidebar');
-        $this->load->view('productos/nuevo');
+        $this->load->view('productos/nuevo', $data);
         $this->load->view('layouts/footer');
     }
 
@@ -40,6 +44,8 @@ public function guardar() {
         'nombre'        => $this->input->post('nombre'),
         'descripcion'   => $this->input->post('descripcion'),
         'categoria'     => $this->input->post('categoria'),
+        'id_categoria'  => $this->input->post('id_categoria') ?: null,
+        'id_almacen'    => $this->input->post('id_almacen') ?: null,
         'precio_compra' => $this->input->post('precio_compra'),
         'precio_venta'  => $this->input->post('precio_venta'),
         'stock'         => $this->input->post('stock'),
@@ -135,6 +141,9 @@ public function guardar() {
             show_404(); // No permitir editar productos de otras sucursales
         }
 
+        $data['categorias'] = $this->Categoria_model->get_categorias();
+        $data['almacenes']  = $this->Almacen_model->get_almacenes();
+
         $this->load->view('layouts/header');
         $this->load->view('layouts/sidebar');
         $this->load->view('productos/editar', $data);
@@ -155,6 +164,8 @@ public function actualizar($id) {
         'nombre'        => $this->input->post('nombre'),
         'descripcion'   => $this->input->post('descripcion'),
         'categoria'     => $this->input->post('categoria'),
+        'id_categoria'  => $this->input->post('id_categoria') ?: null,
+        'id_almacen'    => $this->input->post('id_almacen') ?: null,
         'precio_compra' => $this->input->post('precio_compra'),
         'precio_venta'  => $this->input->post('precio_venta'),
         'stock'         => $this->input->post('stock'),

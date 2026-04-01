@@ -14,8 +14,16 @@ class Stock_model extends CI_Model {
                    p.precio_compra,
                    p.precio_venta,
                    p.stock,
-                   p.stock_minimo
+                   p.stock_minimo,
+                   p.id_categoria,
+                   p.id_almacen,
+                   c.nombre AS categoria_nombre,
+                   c.color AS categoria_color,
+                   c.icono AS categoria_icono,
+                   a.nombre AS almacen_nombre
             FROM productos p
+            LEFT JOIN categorias c ON c.id = p.id_categoria
+            LEFT JOIN almacenes a ON a.id = p.id_almacen
             WHERE p.id_sucursal = ?
             ORDER BY p.nombre ASC
         ", [$id_sucursal])->result();
