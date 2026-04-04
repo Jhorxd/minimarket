@@ -1,12 +1,24 @@
 <!-- Librería reactiva Alpine.js -->
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
+<?php
+$hoy    = new DateTimeImmutable('today');
+$urlCompras = site_url('compras/compras_index');
+$preset = function ($desde, $hasta) use ($urlCompras) {
+    return $urlCompras . '?' . http_build_query(['fecha_desde' => $desde, 'fecha_hasta' => $hasta]);
+};
+$q7  = $preset($hoy->sub(new DateInterval('P6D'))->format('Y-m-d'), $hoy->format('Y-m-d'));
+$q30 = $preset($hoy->sub(new DateInterval('P29D'))->format('Y-m-d'), $hoy->format('Y-m-d'));
+$iniMes = $hoy->format('Y-m-01');
+$qMes = $preset($iniMes, $hoy->format('Y-m-d'));
+?>
+
 <div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0"
      x-data="{ 
         items: <?= htmlspecialchars(json_encode($compras), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
         page: 1,
-        perPage: 12,
+        perPage: 10,
         get filteredItems() {
             if (this.search === '') return this.items;
             const q = this.search.toLowerCase();
@@ -58,29 +70,76 @@
             doc.text('Generado el: ' + new Date().toLocaleString(), 14, 28);
 
             const tableData = this.filteredItems.map(i => [
-                i.id,
+                '#' + i.id.toString().padStart(6, '0'),
                 i.fecha_registro,
                 i.proveedor_razon || i.proveedor || 'Sin detallar',
-                i.usuario,
+                i.estado.toUpperCase(),
                 'S/ ' + parseFloat(i.total).toFixed(2)
             ]);
 
+            tableData.push(['', '', 'TOTAL ACUMULADO:', '', 'S/ ' + this.totalGeneral.toFixed(2)]);
+
             doc.autoTable({
                 startY: 35,
-                head: [['ID', 'Fecha de Operación', 'Origen / Proveedor', 'Registrado Por', 'Inversión Bruta']],
+                head: [['ID', 'Fecha de Operación', 'Origen / Proveedor', 'Estado', 'Monto']],
                 body: tableData,
                 theme: 'striped',
                 headStyles: { 
-                    fillColor: [30, 41, 59], // Slate-800
+                    fillColor: [30, 41, 59], 
                     textColor: 255,
                     fontSize: 10,
                     fontStyle: 'bold'
+                },
+                didParseCell: function (data) {
+                    if (data.row.index === tableData.length - 1) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.textColor = [16, 185, 129];
+                    }
                 },
                 styles: { fontSize: 9, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
 
             doc.save('Reporte_Compras_' + new Date().getTime() + '.pdf');
+        },
+        get totalGeneral() {
+            return this.filteredItems
+                .filter(i => i.estado === 'completada')
+                .reduce((sum, item) => sum + parseFloat(item.total), 0);
+        },
+        anularCompra(id) {
+            Swal.fire({
+                title: '¿Anular compra #'+id+'?',
+                text: 'Esto restará el stock ingresado y registrará una salida en Kardex.',
+                input: 'text',
+                inputPlaceholder: 'Motivo de la anulación...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#94a3b8',
+                confirmButtonText: 'Sí, anular',
+                cancelButtonText: 'Cancelar',
+                preConfirm: (motivo) => {
+                    if (!motivo) Swal.showValidationMessage('El motivo es obligatorio');
+                    return motivo;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('<?= base_url('compras/anular_compra') ?>', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({id_compra: id, motivo: result.value})
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('Anulada', 'La compra fue anulada y el stock revertido.', 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', data.message || 'Error desconocido', 'error');
+                        }
+                    });
+                }
+            });
         }
      }">
 
@@ -90,7 +149,7 @@
         <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
             <div>
                 <nav class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">Abastecimiento & Gastos</nav>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tighter">Historial de Compras</h1>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tighter">Compras e Inventario</h1>
                 <p class="text-slate-400 text-xs mt-2 font-medium italic">Registro de ingresos de mercadería y costos operativos</p>
             </div>
             <div class="flex items-center gap-3">
@@ -100,6 +159,34 @@
                 </a>
             </div>
         </header>
+
+        <!-- Filtros de Fecha -->
+        <form method="get" action="<?= site_url('compras/compras_index') ?>"
+              class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm mb-8">
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Atajos</span>
+                <a href="<?= html_escape($q7) ?>" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">Últimos 7 días</a>
+                <a href="<?= html_escape($q30) ?>" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">Últimos 30 días</a>
+                <a href="<?= html_escape($qMes) ?>" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">Mes en curso</a>
+            </div>
+            <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                <div class="flex-1 min-w-0">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Desde</label>
+                    <input type="date" name="fecha_desde" value="<?= html_escape($fecha_desde) ?>"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hasta</label>
+                    <input type="date" name="fecha_hasta" value="<?= html_escape($fecha_hasta) ?>"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-colors">
+                        <i class="fas fa-filter"></i> Aplicar
+                    </button>
+                </div>
+            </div>
+        </form>
 
         <!-- Barra de Herramientas (Búsqueda + Exportación) -->
         <div class="flex flex-col lg:flex-row items-stretch gap-3 mb-6">
@@ -152,15 +239,15 @@
                     </thead>
                     <tbody class="divide-y divide-slate-50">
                         <template x-for="c in pagedItems" :key="c.id">
-                            <tr class="hover:bg-emerald-50/30 transition-colors group">
+                            <tr :class="c.estado === 'anulada' ? 'bg-rose-50/50 hover:bg-rose-100/50' : 'hover:bg-emerald-50/30'" class="transition-colors group">
                                 <td class="px-8 py-5">
                                     <div class="flex items-center gap-4">
                                         <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-inner border border-slate-100 group-hover:bg-emerald-600 transition-all duration-300">
                                             <i class="fas fa-file-invoice text-slate-300 group-hover:text-white transition-colors text-sm"></i>
                                         </div>
                                         <div>
-                                            <p class="font-black text-slate-800 text-sm tracking-tight" x-text="'#' + c.id.toString().padStart(6, '0')"></p>
-                                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 italic">Folio Interno</span>
+                                            <p class="font-black text-slate-800 text-sm tracking-tight" :class="c.estado === 'anulada' ? 'line-through text-red-500' : ''" x-text="'#' + c.id.toString().padStart(6, '0')"></p>
+                                            <span class="text-[9px] font-black uppercase tracking-widest mt-0.5 italic" :class="c.estado === 'anulada' ? 'text-rose-400' : 'text-slate-400'" x-text="c.estado"></span>
                                         </div>
                                     </div>
                                 </td>
@@ -185,16 +272,39 @@
                                           x-text="c.usuario">
                                     </span>
                                 </td>
-                                <td class="px-8 py-5 text-right">
-                                    <a :href="'<?= base_url('compras/ver_compras/') ?>' + c.id"
-                                       class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.1em] hover:bg-emerald-700 transition-all shadow-md active:scale-95">
-                                        <i class="fas fa-eye text-[10px] text-emerald-400"></i>
-                                        Detalle
-                                    </a>
+                                <td class="px-8 py-5 text-right font-sans">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <a :href="'<?= base_url('compras/ver_compras/') ?>' + c.id"
+                                           class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.1em] hover:bg-blue-700 transition-all shadow-md active:scale-95">
+                                            <i class="fas fa-eye text-[10px] text-blue-400"></i>
+                                            Ver
+                                        </a>
+                                        <a :href="'<?= base_url('compras/ticket_pdf/') ?>' + c.id" target="_blank"
+                                           class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all transform active:scale-95">
+                                            <i class="fas fa-file-pdf"></i> PDF
+                                        </a>
+                                        <button x-show="c.estado === 'completada'" @click="anularCompra(c.id)" 
+                                                class="inline-flex items-center gap-2 px-3 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all transform active:scale-95">
+                                            <i class="fas fa-times"></i> Anular
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
+                    <!-- Fila de Totales -->
+                    <tfoot class="border-t-2 border-slate-100">
+                        <tr class="bg-slate-50/50">
+                            <td colspan="3" class="px-8 py-6 text-right">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Inversión Total Acumulada:</span>
+                            </td>
+                            <td class="px-6 py-6 text-right">
+                                <div class="text-base font-black text-emerald-600">S/ <span x-text="totalGeneral.toFixed(2)"></span></div>
+                                <div class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">(Solo Completadas)</div>
+                            </td>
+                            <td colspan="2" class="px-8 py-6"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
 

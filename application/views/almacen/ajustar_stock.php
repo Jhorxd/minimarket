@@ -5,6 +5,12 @@
      x-data="{ 
         items: <?= htmlspecialchars(json_encode($kardex), ENT_QUOTES, 'UTF-8') ?>,
         productName: '<?= addslashes($producto->nombre) ?>',
+        get totalEntradas() {
+            return this.items.filter(i => i.tipo_movimiento === 'Entrada').reduce((sum, i) => sum + parseInt(i.cantidad), 0);
+        },
+        get totalSalidas() {
+            return this.items.filter(i => i.tipo_movimiento === 'Salida').reduce((sum, i) => sum + parseInt(i.cantidad), 0);
+        },
         exportExcel() {
             if (this.items.length === 0) return;
             const data = this.items.map(i => ({
@@ -13,9 +19,14 @@
                 'Motivo': i.motivo,
                 'Doc. Ref.': i.documento_ref,
                 'Tercero': i.tercero_nombre || '-',
-                'Cantidad': i.cantidad,
-                'Stock Resultante': i.stock_resultante
+                'Cantidad': parseInt(i.cantidad),
+                'Stock Resultante': parseInt(i.stock_resultante)
             }));
+            
+            data.push({'Fecha': '---', 'Tipo': '---', 'Motivo': '---', 'Doc. Ref.': '---', 'Tercero': '---', 'Cantidad': '---', 'Stock Resultante': '---'});
+            data.push({'Fecha': 'TOTAL ENTRADAS', 'Tipo': '', 'Motivo': '', 'Doc. Ref.': '', 'Tercero': '', 'Cantidad': this.totalEntradas, 'Stock Resultante': ''});
+            data.push({'Fecha': 'TOTAL SALIDAS', 'Tipo': '', 'Motivo': '', 'Doc. Ref.': '', 'Tercero': '', 'Cantidad': this.totalSalidas, 'Stock Resultante': ''});
+
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Kardex');
@@ -43,9 +54,12 @@
                 i.motivo,
                 i.documento_ref,
                 i.tercero_nombre || '-',
-                i.cantidad,
-                i.stock_resultante
+                parseInt(i.cantidad),
+                parseInt(i.stock_resultante)
             ]);
+
+            tableData.push(['', '', '', '', 'TOTAL ENTRADAS', this.totalEntradas, '']);
+            tableData.push(['', '', '', '', 'TOTAL SALIDAS', this.totalSalidas, '']);
 
             doc.autoTable({
                 startY: 40,
@@ -77,7 +91,7 @@
                     Ajustar Stock
                 </h1>
                 <p class="mt-2 text-xs text-slate-400 font-medium italic">
-                    <?= htmlspecialchars($producto->nombre); ?> · Stock actual: <span class="font-black text-slate-600"><?= number_format($producto->stock, 2); ?></span>
+                    <?= htmlspecialchars($producto->nombre); ?> · Stock actual: <span class="font-black text-slate-600"><?= (int)$producto->stock; ?></span>
                 </p>
             </div>
         </header>
@@ -90,7 +104,7 @@
                     Nuevo ajuste
                 </h2>
 
-                <form action="<?= base_url('almacen/guardar_ajuste'); ?>" method="post" class="space-y-4">
+                <form action="<?= base_url('almacen/guardar_ajuste'); ?>" method="post" class="space-y-4" x-data="{ motivo: 'Ajuste' }">
                     <input type="hidden" name="id_producto" value="<?= $producto->id; ?>">
 
                     <div>
@@ -116,13 +130,21 @@
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
                             Motivo
                         </label>
-                        <select name="motivo"
+                        <select name="motivo" x-model="motivo"
                                 class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="Ajuste">Ajuste</option>
                             <option value="Compra">Compra</option>
                             <option value="Venta">Venta</option>
                             <option value="Traslado">Traslado</option>
                         </select>
+                    </div>
+
+                    <div x-show="motivo === 'Ajuste'" x-transition>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                            Descripción del ajuste (Opcional)
+                        </label>
+                        <input type="text" name="descripcion_ajuste" placeholder="Ej. Producto mermado, conteo manual..."
+                               class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">
@@ -203,10 +225,10 @@
                     </td>
 
                     <td class="px-4 py-3 text-right text-xs text-slate-800">
-                        <?= number_format($m->cantidad, 2); ?>
+                        <?= (int) $m->cantidad; ?>
                     </td>
                     <td class="px-4 py-3 text-right text-xs text-slate-800">
-                        <?= number_format($m->stock_resultante, 2); ?>
+                        <?= (int) $m->stock_resultante; ?>
                     </td>
                 </tr>
             <?php endforeach; else: ?>
@@ -217,6 +239,18 @@
                 </tr>
             <?php endif; ?>
         </tbody>
+        <tfoot class="bg-slate-50 font-bold border-t-2 border-slate-200" x-show="items.length > 0">
+            <tr>
+                <td colspan="5" class="px-4 py-2 text-right text-xs text-slate-500 uppercase tracking-widest border-b border-slate-100">Total Entradas:</td>
+                <td class="px-4 py-2 text-right text-xs text-emerald-600 border-b border-slate-100" x-text="totalEntradas"></td>
+                <td class="border-b border-slate-100"></td>
+            </tr>
+            <tr>
+                <td colspan="5" class="px-4 py-2 text-right text-xs text-slate-500 uppercase tracking-widest">Total Salidas:</td>
+                <td class="px-4 py-2 text-right text-xs text-red-600" x-text="totalSalidas"></td>
+                <td></td>
+            </tr>
+        </tfoot>
     </table>
 </div>
 

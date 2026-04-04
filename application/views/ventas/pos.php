@@ -40,8 +40,8 @@
                                  class="group bg-white rounded-xl p-3 border border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden flex flex-col h-full">
                                 
                                 <div class="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold z-10"
-                                     :class="prod.stock > 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
-                                    <span x-text="'Stock: ' + prod.stock"></span>
+                                     :class="parseFloat(prod.stock) > umbralStockMin(prod) ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
+                                    <span x-text="'Stock: ' + parseInt(prod.stock)"></span>
                                 </div>
 
                                 <div class="h-28 mb-2 flex items-center justify-center bg-slate-50 rounded-lg overflow-hidden">
@@ -52,7 +52,17 @@
                                 </div>
 
                                 <div class="flex flex-col flex-1">
-                                    <h3 class="text-xs font-bold text-slate-700 uppercase leading-tight mb-2 flex-1" x-text="prod.nombre"></h3>
+                                    <h3 class="text-[11px] font-black text-slate-700 uppercase leading-tight mb-1 flex-1" x-text="prod.nombre"></h3>
+                                    <template x-if="prod.talla || prod.color">
+                                        <div class="flex gap-1 mb-2">
+                                            <template x-if="prod.talla">
+                                                <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-widest border border-slate-200" x-text="'T:' + prod.talla"></span>
+                                            </template>
+                                            <template x-if="prod.color">
+                                                <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-widest border border-slate-200" x-text="'C:' + prod.color"></span>
+                                            </template>
+                                        </div>
+                                    </template>
                                     <div class="flex items-center justify-between mt-auto">
                                         <span class="text-base font-black text-blue-600" x-text="'S/ ' + parseFloat(prod.precio_venta).toFixed(2)"></span>
                                         <div class="bg-blue-50 text-blue-600 p-1.5 rounded-md group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -71,9 +81,37 @@
                 <div class="bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col h-full overflow-hidden">
                     
                     <!-- Header carrito -->
-                    <div class="p-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                        <h2 class="text-sm font-black text-slate-800 uppercase tracking-tighter">Venta Actual</h2>
-                        <button @click="carrito = []; calcularTotal()" class="text-slate-400 hover:text-red-500 text-xs font-bold">Limpiar</button>
+                    <div class="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-sm font-black text-slate-800 uppercase tracking-tighter">Venta Actual</h2>
+                            <button @click="carrito = []; calcularTotal()" class="text-slate-400 hover:text-red-500 text-xs font-bold">Limpiar</button>
+                        </div>
+                        
+                        <!-- Client Selector -->
+                        <div class="flex flex-col gap-1 relative" @click.away="showDropdownClientes = false">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
+                                Cliente:
+                                <button @click="modalNuevoCliente = true" class="text-blue-500 hover:text-blue-600 focus:outline-none"><i class="fas fa-plus"></i> Nuevo</button>
+                            </label>
+                            
+                            <input type="text" x-model="searchCliente" @focus="showDropdownClientes = true; fetchClientes()" @input="onInputClienteSearch()" placeholder="Buscar cliente..."
+                                   class="w-full bg-white border border-slate-200 text-sm rounded-lg p-1.5 focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 outline-none">
+                            
+                            <div x-show="showDropdownClientes" style="display: none;"
+                                 class="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-lg z-50 max-h-48 overflow-y-auto">
+                                <template x-for="cli in clientesFiltrados" :key="cli.id_cliente">
+                                    <div @click="seleccionarCliente(cli)" 
+                                         class="px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0"
+                                         :class="idCliente == cli.id_cliente ? 'bg-blue-50 font-bold' : ''">
+                                        <div x-text="cli.nombre"></div>
+                                        <div x-show="cli.nro_documento" class="text-[10px] text-slate-400" x-text="cli.tipo_documento + ': ' + cli.nro_documento"></div>
+                                    </div>
+                                </template>
+                                <div x-show="clientesFiltrados.length === 0" class="px-3 py-2 text-sm text-slate-500 italic">
+                                    No se encontraron clientes
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Items del carrito -->
@@ -81,7 +119,13 @@
                         <template x-for="(item, index) in carrito" :key="index">
                             <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100 relative group">
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-[10px] font-bold text-slate-800 uppercase truncate" x-text="item.nombre"></p>
+                                    <p class="text-[10px] font-black text-slate-800 uppercase truncate">
+                                        <span x-text="item.nombre"></span>
+                                        <template x-if="item.talla || item.color">
+                                            <span class="ml-1 text-[8px] text-slate-400 font-bold" x-text="(item.talla ? 'T:'+item.talla : '') + (item.color ? ' C:'+item.color : '')"></span>
+                                        </template>
+                                        <span x-show="item.es_promo" class="ml-1 text-[8px] bg-amber-100 text-amber-600 px-1 py-0.5 rounded font-black">Promo</span>
+                                    </p>
                                     <div class="flex items-center gap-1">
                                         <span class="text-[11px] text-blue-600 font-black">S/</span>
                                         <input type="number" 
@@ -197,6 +241,55 @@
         </div>
 
 
+<!-- Modal Nuevo Cliente -->
+<div x-show="modalNuevoCliente" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div x-show="modalNuevoCliente" x-transition.opacity class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" aria-hidden="true" @click="modalNuevoCliente = false"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div x-show="modalNuevoCliente" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-slate-100">
+                <h3 class="text-lg leading-6 font-black text-slate-800" id="modal-title">Agregar Nuevo Cliente</h3>
+            </div>
+            <div class="px-4 py-5 sm:p-6 space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                        <span x-text="nuevoCliente.tipo_documento === 'DNI' ? 'Nombre Completo' : 'Razón Social'"></span>
+                        <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" x-model="nuevoCliente.nombre" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border" placeholder="Ej. Juan Pérez">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Doc.</label>
+                        <select x-model="nuevoCliente.tipo_documento" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                            <option value="DNI">DNI</option>
+                            <option value="RUC">RUC</option>
+                            <option value="CE">C.Extranjería</option>
+                            <option value="PASAPORTE">Pasaporte</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Número</label>
+                        <input type="text" x-model="nuevoCliente.nro_documento" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teléfono</label>
+                    <input type="text" x-model="nuevoCliente.telefono" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                </div>
+            </div>
+            <div class="bg-slate-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
+                <button type="button" @click="guardarNuevoCliente()" class="w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm font-bold">
+                    Guardar Cliente
+                </button>
+                <button type="button" @click="modalNuevoCliente = false" class="mt-3 w-full inline-flex justify-center rounded-xl border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm font-bold">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
     </div>
 </div>
 
@@ -234,6 +327,84 @@ function posSystem() {
         mostrarScanner: false,
         html5QrCode: null,
 
+        promociones: <?= json_encode($promociones ?? []) ?>,
+        clientes: <?= json_encode($clientes ?? []) ?>,
+        idCliente: 1,
+
+        searchCliente: '',
+        showDropdownClientes: false,
+        modalNuevoCliente: false,
+        nuevoCliente: {nombre: '', tipo_documento: 'DNI', nro_documento: '', telefono: ''},
+
+        init() {
+            let c = this.clientes.find(x => x.id_cliente == this.idCliente);
+            if(c) this.searchCliente = c.nombre;
+        },
+
+        _debounceTimerCliente: null,
+        onInputClienteSearch() {
+            clearTimeout(this._debounceTimerCliente);
+            this._debounceTimerCliente = setTimeout(() => {
+                this.fetchClientes();
+            }, 300);
+        },
+
+        fetchClientes() {
+            // Solo buscar si el input cambió de texto real. Si es un click (focus), traer top 30
+            const url = `<?= base_url('ventas/buscar_clientes_ajax') ?>?term=${encodeURIComponent(this.searchCliente)}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => { 
+                    // Asegurarnos que el cliente seleccionado no se borre de la lista visual si existe
+                    // Aunque en AJAX no importa tanto
+                    this.clientes = data; 
+                });
+        },
+
+        get clientesFiltrados() {
+            // Filtrado local es opcional porque ya se filtra en backend, pero lo dejamos por consistencia de UI
+            if(this.searchCliente.trim() === '') {
+                // If search is empty or just matches the selected client exactly, show all
+                let c = this.clientes.find(x => x.id_cliente == this.idCliente);
+                if (c && this.searchCliente === c.nombre) return this.clientes;
+            }
+            return this.clientes;
+        },
+
+        seleccionarCliente(cli) {
+            this.idCliente = cli.id_cliente;
+            this.searchCliente = cli.nombre;
+            this.showDropdownClientes = false;
+        },
+
+        guardarNuevoCliente() {
+            if(!this.nuevoCliente.nombre) {
+                Swal.fire('Error', 'El nombre del cliente es obligatorio', 'error');
+                return;
+            }
+            fetch('<?= base_url('clientes/guardar_ajax') ?>', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(this.nuevoCliente)
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    this.clientes.push(data.cliente);
+                    this.seleccionarCliente(data.cliente);
+                    this.modalNuevoCliente = false;
+                    this.nuevoCliente = {nombre: '', tipo_documento: 'DNI', nro_documento: '', telefono: ''};
+                    Swal.fire({
+                        toast: true, position: 'top-end',
+                        icon: 'success', title: 'Cliente agregado',
+                        showConfirmButton: false, timer: 1500
+                    });
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                }
+            }).catch(e => {
+                Swal.fire('Error', 'No se pudo conectar', 'error');
+            });
+        },
+
         get productosFiltrados() {
             const limite = this.isMobile ? 8 : 40;
             return this.listaProductos.slice(0, limite);
@@ -243,6 +414,16 @@ function posSystem() {
             const recibido = parseFloat(this.montoRecibido) || 0;
             const total = parseFloat(this.totalVenta) || 0;
             return recibido >= total ? (recibido - total).toFixed(2) : '0.00';
+        },
+
+        /**
+         * Alerta de stock bajo: el umbral nunca es menor a 2 unidades (aunque el mínimo del producto sea 1).
+         * Verde si stock > umbral; rojo si stock <= umbral.
+         */
+        umbralStockMin(prod) {
+            const min = parseFloat(prod.stock_minimo);
+            const base = (!isNaN(min) && min >= 0) ? min : 0;
+            return Math.max(2, base);
         },
 
         init() {
@@ -425,7 +606,10 @@ cerrarScannerMovil() {
             } else {
                 this.carrito.push({
                     id: p.id,
+                    id_categoria: p.id_categoria, // Añadido para agrupar promos
                     nombre: p.nombre,
+                    talla: p.talla,
+                    color: p.color,
                     precio: p.precio_venta,
                     cantidad: 1,
                     stock: p.stock
@@ -454,12 +638,51 @@ cerrarScannerMovil() {
         },
 
         calcularTotal() {
-            let t = this.carrito.reduce((acc, item) => {
-                const p = parseFloat(item.precio) || 0;
-                const c = parseInt(item.cantidad) || 0;
-                return acc + (p * c);
-            }, 0);
-            this.totalVenta = t.toFixed(2);
+            let total = 0;
+            // Clonamos para procesar
+            let items = this.carrito.map(item => ({...item}));
+            this.carrito.forEach(i => i.es_promo = false); // reset visual flag
+
+            if(this.promociones && this.promociones.length > 0) {
+                this.promociones.forEach(promo => {
+                    if (promo.id_categoria) {
+                        let idCat = promo.id_categoria;
+                        let cantReq = parseInt(promo.cantidad_requerida);
+                        let pCombo = parseFloat(promo.precio_combo);
+
+                        let cantTotal = items.filter(i => i.id_categoria == idCat).reduce((sum, i) => sum + parseInt(i.cantidad), 0);
+
+                        if (cantTotal >= cantReq) {
+                            let paquetes = Math.floor(cantTotal / cantReq);
+                            let cantEnPromo = paquetes * cantReq;
+                            let pUnitPromedio = (paquetes * pCombo) / cantEnPromo;
+                            
+                            let aDescontar = cantEnPromo;
+                            
+                            // Marcar en UI
+                            this.carrito.filter(i => i.id_categoria == idCat).forEach(realItem => {
+                                let localItem = items.find(j => j.id == realItem.id);
+                                if(localItem && localItem.cantidad > 0 && aDescontar > 0) {
+                                    let tomar = Math.min(localItem.cantidad, aDescontar);
+                                    total += tomar * pUnitPromedio;
+                                    localItem.cantidad -= tomar;
+                                    aDescontar -= tomar;
+                                    realItem.es_promo = true; // Flag para UI
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Sumar el resto
+            items.forEach(it => {
+                if(it.cantidad > 0) {
+                    total += it.cantidad * parseFloat(it.precio);
+                }
+            });
+
+            this.totalVenta = total.toFixed(2);
         },
 
         procesarVenta() {
@@ -490,7 +713,8 @@ cerrarScannerMovil() {
                             total: this.totalVenta,
                             metodo_pago: this.metodoPago,
                             monto_recibido: this.metodoPago === 'efectivo' ? this.montoRecibido : this.totalVenta,
-                            vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00'
+                            vuelto: this.metodoPago === 'efectivo' ? this.vuelto : '0.00',
+                            id_cliente: this.idCliente
                         })
                     })
                     .then(res => res.json())

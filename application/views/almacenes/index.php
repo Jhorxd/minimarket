@@ -6,7 +6,7 @@
         items: <?= htmlspecialchars(json_encode($almacenes), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
         page: 1,
-        perPage: 8,
+        perPage: 10,
         get filteredItems() {
             if (this.search === '') return this.items;
             const q = this.search.toLowerCase();

@@ -6,7 +6,7 @@
         items: <?= htmlspecialchars(json_encode($proveedores), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
         page: 1,
-        perPage: 12,
+        perPage: 10,
         get filteredItems() {
             if (this.search === '') return this.items;
             const q = this.search.toLowerCase();
@@ -130,6 +130,13 @@
                 </button>
             </div>
         </div>
+
+        <?php if ($this->session->flashdata('msg_error')): ?>
+            <div class="mb-4 px-6 py-4 rounded-2xl bg-rose-50 border border-rose-100 text-rose-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-sm anim-fade">
+                <i class="fas fa-exclamation-circle text-rose-500 text-lg"></i>
+                <span><?= $this->session->flashdata('msg_error'); ?></span>
+            </div>
+        <?php endif; ?>
 
         <?php if ($this->session->flashdata('msg')): ?>
             <div class="mb-8 px-6 py-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-sm anim-fade">

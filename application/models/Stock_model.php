@@ -24,7 +24,7 @@ class Stock_model extends CI_Model {
             FROM productos p
             LEFT JOIN categorias c ON c.id = p.id_categoria
             LEFT JOIN almacenes a ON a.id = p.id_almacen
-            WHERE p.id_sucursal = ?
+            WHERE p.id_sucursal = ? 
             ORDER BY p.nombre ASC
         ", [$id_sucursal])->result();
     }

@@ -46,7 +46,7 @@
                     <i class="fas fa-boxes text-2xl"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-bold text-slate-400 uppercase tracking-tighter text-red-400">Stock Crítico (&lt; 5)</p>
+                    <p class="text-sm font-bold text-slate-400 uppercase tracking-tighter text-red-400">Stock Crítico (&lt; 2)</p>
                     <h3 class="text-3xl font-black text-slate-900">8 <span class="text-lg text-slate-400 font-light">Items</span></h3>
                 </div>
             </div>

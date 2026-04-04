@@ -62,6 +62,14 @@ class Clientes extends CI_Controller {
         'id_sucursal'    => $id_sucursal,
     ];
 
+        if (!empty($post['nro_documento'])) {
+            if ($this->cliente_m->existe_documento($post['nro_documento'], $post['id'] ?? null)) {
+                $this->session->set_flashdata('msg_error', 'El documento ' . $post['nro_documento'] . ' ya se encuentra registrado para otro cliente.');
+                redirect('clientes/cliente_index');
+                return;
+            }
+        }
+
         if (empty($post['id'])) {
         $this->cliente_m->insert($data);
         $this->session->set_flashdata('msg', 'Cliente creado correctamente');
@@ -71,6 +79,51 @@ class Clientes extends CI_Controller {
     }
 
         redirect('clientes/cliente_index');
+    }
+
+    public function guardar_ajax()
+    {
+        $this->output->set_content_type('application/json');
+        
+        $json = json_decode($this->input->raw_input_stream, true);
+        if (!$json) {
+            echo json_encode(['success' => false, 'message' => 'Datos inválidos']);
+            return;
+        }
+
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        
+        $data = [
+            'nombre'         => $json['nombre'] ?? '',
+            'tipo_documento' => $json['tipo_documento'] ?? '',
+            'nro_documento'  => $json['nro_documento'] ?? '',
+            'telefono'       => $json['telefono'] ?? '',
+            'email'          => $json['email'] ?? '',
+            'direccion'      => $json['direccion'] ?? '',
+            'id_sucursal'    => $id_sucursal,
+            'estado'         => 1
+        ];
+
+        if (empty($data['nombre'])) {
+            echo json_encode(['success' => false, 'message' => 'El nombre es obligatorio']);
+            return;
+        }
+        
+        if (!empty($data['nro_documento'])) {
+            if ($this->cliente_m->existe_documento($data['nro_documento'])) {
+                echo json_encode(['success' => false, 'message' => 'El documento ' . $data['nro_documento'] . ' ya existe en clientes.']);
+                return;
+            }
+        }
+
+        $id = $this->cliente_m->insert($data);
+
+        if ($id) {
+            $data['id_cliente'] = $id;
+            echo json_encode(['success' => true, 'cliente' => $data]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Error al guardar cliente']);
+        }
     }
 
     public function eliminar($id_cliente)

@@ -64,6 +64,14 @@ class Proveedores extends CI_Controller {
             'id_sucursal'      => $id_sucursal,
         ];
 
+        if (!empty($post['nro_documento'])) {
+            if ($this->proveedor_m->existe_documento($post['nro_documento'], $post['id'] ?? null)) {
+                $this->session->set_flashdata('msg_error', 'El documento ' . $post['nro_documento'] . ' ya se encuentra registrado para otro proveedor.');
+                redirect('proveedores/proveedor_index');
+                return;
+            }
+        }
+
         if (empty($post['id'])) {
             $this->proveedor_m->insert($data);
             $this->session->set_flashdata('msg', 'Proveedor creado correctamente');
@@ -73,6 +81,57 @@ class Proveedores extends CI_Controller {
         }
 
         redirect('proveedores/proveedor_index');
+    }
+
+    public function buscar_ajax() {
+        $buscar = $this->input->get('term');
+        $proveedores = $this->proveedor_m->get_proveedores_ajax($buscar);
+        echo json_encode($proveedores);
+    }
+
+    public function guardar_ajax()
+    {
+        $this->output->set_content_type('application/json');
+        
+        $json = json_decode($this->input->raw_input_stream, true);
+        if (!$json) {
+            echo json_encode(['success' => false, 'message' => 'Datos inválidos']);
+            return;
+        }
+
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        
+        $data = [
+            'razon_social'     => $json['razon_social'] ?? '',
+            'tipo_documento'   => $json['tipo_documento'] ?? '',
+            'nro_documento'    => $json['nro_documento'] ?? '',
+            'telefono'         => $json['telefono'] ?? '',
+            'email'            => $json['email'] ?? '',
+            'direccion'        => $json['direccion'] ?? '',
+            'id_sucursal'      => $id_sucursal,
+            'estado'         => 1
+        ];
+
+        if (empty($data['razon_social'])) {
+            echo json_encode(['success' => false, 'message' => 'La Razón Social/Nombre es obligatoria']);
+            return;
+        }
+        
+        if (!empty($data['nro_documento'])) {
+            if ($this->proveedor_m->existe_documento($data['nro_documento'])) {
+                echo json_encode(['success' => false, 'message' => 'El documento ' . $data['nro_documento'] . ' ya existe en proveedores.']);
+                return;
+            }
+        }
+
+        $id = $this->proveedor_m->insert($data);
+
+        if ($id) {
+            $data['id_proveedor'] = $id;
+            echo json_encode(['success' => true, 'proveedor' => $data]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Error al guardar proveedor']);
+        }
     }
 
 

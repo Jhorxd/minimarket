@@ -139,9 +139,23 @@
                 </li>
 
                 <li class="nav-item">
+                    <a href="<?= base_url('dashboard/financiero') ?>" class="nav-link <?= ($segment1 == 'dashboard' && $segment2 == 'financiero') ? 'active' : '' ?>">
+                        <i class="fas fa-chart-pie"></i>
+                        <p>Dashboard Financiero</p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="<?= base_url('compras/compras_index') ?>" class="nav-link <?= ($segment1 == 'compras') ? 'active' : '' ?>">
                         <i class="fas fa-shopping-basket"></i>
                         <p>Compras e Inventario</p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= base_url('gastos') ?>" class="nav-link <?= ($segment1 == 'gastos') ? 'active' : '' ?>">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <p>Gastos operativos</p>
                     </a>
                 </li>
 
@@ -161,7 +175,7 @@
 
                 <li class="nav-item">
                     <a href="<?= base_url('caja') ?>" class="nav-link <?= ($segment1 == 'caja') ? 'active' : '' ?>">
-                        <i class="fas fa-vault"></i>
+                        <i class="fas fa-wallet"></i>
                         <p>Control de Cajas</p>
                     </a>
                 </li>

@@ -6,7 +6,7 @@
         items: <?= htmlspecialchars(json_encode($productos), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
         page: 1,
-        perPage: 12,
+        perPage: 10,
         get filteredItems() {
             if (this.search === '') return this.items;
             const q = this.search.toLowerCase();
@@ -33,7 +33,7 @@
         exportExcel() {
             const data = this.filteredItems.map(i => ({
                 'Código': i.codigo_barras,
-                'Producto': i.nombre,
+                'Producto': i.nombre + (i.variantes_detalle ? ' [' + i.variantes_detalle + ']' : ''),
                 'Categoría': i.categoria || '-',
                 'Precio Venta': i.precio_venta,
                 'Stock': i.stock,
@@ -59,7 +59,7 @@
 
             const tableData = this.filteredItems.map(i => [
                 i.codigo_barras,
-                i.nombre,
+                i.nombre + (i.variantes_detalle ? '\n(' + i.variantes_detalle + ')' : ''),
                 i.categoria || '-',
                 'S/ ' + parseFloat(i.precio_venta).toFixed(2),
                 i.stock
@@ -154,9 +154,19 @@
                                                 <i class="fas fa-box text-slate-300 text-lg"></i>
                                             </template>
                                         </div>
-                                        <div>
-                                            <p class="font-black text-slate-800 text-sm" x-text="p.nombre"></p>
-                                            <p class="text-[10px] text-slate-400 font-black font-mono tracking-widest uppercase mt-0.5" x-text="p.codigo_barras"></p>
+                                        <div class="flex-1">
+                                            <p class="font-black text-slate-800 text-sm leading-tight" x-text="p.nombre"></p>
+                                            <div class="flex flex-wrap items-center gap-2 mt-1">
+                                                <p class="text-[10px] text-slate-400 font-black font-mono tracking-widest uppercase" x-text="p.codigo_barras"></p>
+                                                
+
+                                                <!-- Detalle de Atributos Concatenados -->
+                                                <div class="flex items-center gap-2 text-[9px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100" 
+                                                     x-show="p.variantes_detalle">
+                                                    <i class="fas fa-layer-group text-[7px] text-slate-300"></i>
+                                                    <span x-text="p.variantes_detalle"></span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -170,11 +180,11 @@
                                 </td>
                                 <td class="px-6 py-5 text-center">
                                     <div class="flex flex-col items-center gap-1">
-                                        <span :class="parseFloat(p.stock) <= parseFloat(p.stock_minimo) ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'"
+                                        <span :class="parseFloat(p.stock) <= Math.max(2, parseFloat(p.stock_minimo) || 0) ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'"
                                               class="px-4 py-1 rounded-xl text-xs font-black border"
                                               x-text="parseFloat(p.stock).toFixed(0)">
                                         </span>
-                                        <template x-if="parseFloat(p.stock) <= parseFloat(p.stock_minimo)">
+                                        <template x-if="parseFloat(p.stock) <= Math.max(2, parseFloat(p.stock_minimo) || 0)">
                                             <span class="text-[8px] font-black text-rose-400 uppercase tracking-tighter">Stock Crítico</span>
                                         </template>
                                     </div>

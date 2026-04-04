@@ -2,7 +2,7 @@
 // $proveedores, $productosIniciales (opcional)
 ?>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0">
+<div x-data="compraUI()" class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0">
 
     <div class="p-4 sm:p-6 lg:p-10 w-full">
 
@@ -26,27 +26,30 @@
                 </h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                            Proveedor (maestro)
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="relative" @click.away="showDropdownProv = false">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 flex justify-between">
+                            Proveedor
+                            <button type="button" @click="modalNuevoProv = true" class="text-blue-500 hover:text-blue-600 focus:outline-none"><i class="fas fa-plus"></i> Nuevo</button>
                         </label>
-                        <select name="id_proveedor"
-                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">-- Seleccionar --</option>
-                            <?php foreach ($proveedores as $p): ?>
-                                <option value="<?= $p->id_proveedor; ?>">
-                                    <?= htmlspecialchars($p->razon_social); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                            Proveedor (texto en documento)
-                        </label>
-                        <input type="text" name="proveedor_texto"
-                               placeholder="Se imprimirá en el comprobante"
+                        <input type="hidden" name="id_proveedor" :value="idProveedor">
+                        <input type="text" x-model="searchProv" @focus="showDropdownProv = true; fetchProv()" @input="onInputProv()" placeholder="Buscar proveedor por razón social o RUC..."
                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        
+                        <div x-show="showDropdownProv" style="display: none;"
+                             class="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-lg z-50 max-h-48 overflow-y-auto">
+                            <template x-for="p in proveedoresResult" :key="p.id_proveedor">
+                                <div @click="seleccionarProv(p)" 
+                                     class="px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0"
+                                     :class="idProveedor == p.id_proveedor ? 'bg-blue-50 font-bold' : ''">
+                                    <div x-text="p.razon_social"></div>
+                                    <div x-show="p.nro_documento" class="text-[10px] text-slate-400" x-text="(p.tipo_documento || 'DOC') + ': ' + p.nro_documento"></div>
+                                </div>
+                            </template>
+                            <div x-show="proveedoresResult.length === 0" class="px-3 py-2 text-sm text-slate-500 italic">
+                                No se encontraron proveedores
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -128,6 +131,109 @@
 
     </div>
 </div>
+
+<!-- Modal Nuevo Proveedor -->
+<div x-show="modalNuevoProv" style="display: none;" class="fixed inset-0 z-[100] overflow-y-auto w-full h-full">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div x-show="modalNuevoProv" class="fixed inset-0 bg-slate-900 bg-opacity-75" @click="modalNuevoProv = false"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen"></span>
+        <div x-show="modalNuevoProv" class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-slate-100">
+                <h3 class="text-lg leading-6 font-black text-slate-800">Agregar Nuevo Proveedor</h3>
+            </div>
+            <div class="px-4 py-5 sm:p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                        <span x-text="nuevoProv.tipo_documento === 'DNI' ? 'Nombre' : 'Razón Social'"></span>
+                        <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" x-model="nuevoProv.razon_social" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Doc.</label>
+                        <select x-model="nuevoProv.tipo_documento" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                            <option value="RUC">RUC</option>
+                            <option value="DNI">DNI</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Número</label>
+                        <input type="text" x-model="nuevoProv.nro_documento" class="w-full border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 p-2 border">
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
+                <button type="button" @click="guardarNuevoProv()" class="w-full inline-flex justify-center rounded-xl px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:ml-3 sm:w-auto sm:text-sm font-bold">
+                    Guardar
+                </button>
+                <button type="button" @click="modalNuevoProv = false" class="mt-3 w-full inline-flex justify-center rounded-xl border border-slate-300 px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm font-bold">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('compraUI', () => ({
+        idProveedor: '',
+        searchProv: '',
+        showDropdownProv: false,
+        proveedoresResult: [],
+        _timeoutProv: null,
+        
+        modalNuevoProv: false,
+        nuevoProv: {razon_social: '', tipo_documento: 'RUC', nro_documento: ''},
+
+        init() {
+            this.fetchProv(); // cargar iniciales
+        },
+        
+        onInputProv() {
+            clearTimeout(this._timeoutProv);
+            this._timeoutProv = setTimeout(() => {
+                this.fetchProv();
+            }, 300);
+        },
+        
+        fetchProv() {
+            fetch('<?= base_url('proveedores/buscar_ajax') ?>?term=' + encodeURIComponent(this.searchProv))
+                .then(r => r.json())
+                .then(data => { this.proveedoresResult = data; });
+        },
+        
+        seleccionarProv(p) {
+            this.idProveedor = p.id_proveedor;
+            this.searchProv = p.razon_social;
+            this.showDropdownProv = false;
+        },
+        
+        guardarNuevoProv() {
+            if(!this.nuevoProv.razon_social) {
+                return Swal.fire('Error', 'La razón social es obligatoria', 'error');
+            }
+            fetch('<?= base_url('proveedores/guardar_ajax') ?>', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(this.nuevoProv)
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    this.seleccionarProv(data.proveedor);
+                    this.modalNuevoProv = false;
+                    this.nuevoProv = {razon_social: '', tipo_documento: 'RUC', nro_documento: ''};
+                    Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'Proveedor agregado', showConfirmButton: false, timer: 1500});
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                }
+            });
+        }
+    }));
+});
+</script>
 
 <script>
 (function() {

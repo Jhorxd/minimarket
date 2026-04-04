@@ -1,10 +1,255 @@
 <?php 
     $foto_url = $p->imagen ? base_url('uploads/productos/'.$p->imagen.'?v='.$p->version) : null;
+    
+    // Ahora que los productos son independientes, el precio y código base vienen directamente de $p
+    $base_price = (float)$p->precio_venta;
+    $base_barcode = $p->codigo_barras;
+
+    // Inicialización de atributos: Si no hay variantes, usamos los del producto mismo
+    $tallas_init = !empty($p->talla) ? $p->talla : '';
+    $colores_init = !empty($p->color) ? $p->color : '';
+    $disenos_init = !empty($p->diseno) ? $p->diseno : '';
 ?>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/@ericblade/quagga2@latest/dist/quagga.min.js"></script>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0">
+<script>
+function productoForm(iniciales) {
+    return {
+        precioBase: iniciales.precio_venta || 0,
+        stockActual: iniciales.stock || 0,
+        descripcion: iniciales.descripcion || '',
+        categoriaNombre: iniciales.categoria || '',
+        categoriaId: iniciales.id_categoria || 0,
+        inputTallas: iniciales.tallas_init || '',
+        inputColores: iniciales.colores_init || '',
+        inputDisenos: iniciales.disenos_init || '',
+        isStockModalOpen: false,
+        currentVarianteIndex: null,
+        modalCant: 0,
+        modalMotivo: 'Ajuste Manual en Edición',
+        variantes: iniciales.variantes || [],
+        
+        init() {
+            this.$watch('precioBase', (val) => {
+                // Si hay variantes, actualizamos el precio de todas las variantes
+                if (this.variantes.length > 0) {
+                    this.variantes.forEach(v => v.precio = val);
+                }
+            });
+            this.$watch('inputTallas', () => this.generarVariantes(true));
+            this.$watch('inputColores', () => this.generarVariantes(true));
+            this.$watch('inputDisenos', () => this.generarVariantes(true));
+        },
+
+        generarVariantes(manualChange = false) {
+            const tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
+            const colores = this.inputColores.split(',').map(s => s.trim()).filter(s => s !== '');
+            const disenos = this.inputDisenos.split(',').map(s => s.trim()).filter(s => s !== '');
+            
+            // Si el producto es individual y estamos editándolo, no queremos crear variantes
+            // a menos que el usuario realmente escriba algo nuevo que implique una lista.
+            // Para productos únicos, simplemente guardaremos sus atributos.
+            
+            if (tallas.length <= 1 && colores.length <= 1 && disenos.length <= 1) {
+                 // Si solo hay un valor de cada uno, los tratamos como atributos del producto actual, no como variantes.
+                 if (manualChange) this.variantes = [];
+                 return;
+            }
+
+            let combinations = [{}];
+            if (tallas.length > 0) {
+                let next = [];
+                combinations.forEach(c => tallas.forEach(t => next.push({...c, talla: t})));
+                combinations = next;
+            }
+            if (colores.length > 0) {
+                let next = [];
+                combinations.forEach(c => colores.forEach(co => next.push({...c, color: co})));
+                combinations = next;
+            }
+            if (disenos.length > 0) {
+                let next = [];
+                combinations.forEach(c => disenos.forEach(d => next.push({...c, diseno: d})));
+                combinations = next;
+            }
+
+            // Mapeo inteligente
+            this.variantes = combinations.map(c => {
+                const nombre = `${iniciales.nombre_base} (${c.talla || ''} ${c.color || ''} ${c.diseno || ''})`.trim();
+                const existente = this.variantes.find(v => 
+                    (v.talla || '') == (c.talla || '') && 
+                    (v.color || '') == (c.color || '') && 
+                    (v.diseno || '') == (c.diseno || '')
+                );
+
+                if (existente) return existente;
+
+                return {
+                    id: null,
+                    nombre: nombre,
+                    talla: c.talla || '',
+                    color: c.color || '',
+                    diseno: c.diseno || '',
+                    precio: this.precioBase || 0,
+                    stock: 0,
+                    motivo: ''
+                };
+            });
+        },
+
+        abrirModalStock() {
+            this.currentVarianteIndex = null;
+            this.modalCant = this.stockActual;
+            this.modalMotivo = 'Ajuste Manual en Edición';
+            this.isStockModalOpen = true;
+        },
+
+        abrirModalStockVariante(index) {
+            this.currentVarianteIndex = index;
+            this.modalCant = this.variantes[index].stock;
+            this.modalMotivo = this.variantes[index].motivo || 'Ajuste Manual en Edición';
+            this.isStockModalOpen = true;
+        },
+
+        confirmarStock() {
+            if (this.modalMotivo === 'Compra') {
+                this.modalMotivo = 'Ajuste Manual en Edición';
+                alert('🚫 Las COMPRAS se registran en el módulo de Compras.\nAqí solo puedes hacer ajustes de inventario.');
+                return;
+            }
+            if (this.currentVarianteIndex === null) {
+                this.stockActual = parseInt(this.modalCant) || 0;
+            } else {
+                this.variantes[this.currentVarianteIndex].stock = parseInt(this.modalCant) || 0;
+                this.variantes[this.currentVarianteIndex].motivo = this.modalMotivo;
+            }
+            this.isStockModalOpen = false;
+        },
+
+        submitForm() {
+            const form = document.getElementById('formProducto');
+            if (!form.reportValidity()) return;
+
+            const btn = document.querySelector('[x-on\\:click="submitForm()"]');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Actualizando...'; }
+
+            const inputStock = document.createElement('input');
+            inputStock.type = 'hidden';
+            inputStock.name = 'stock_ajuste';
+            inputStock.value = parseInt(this.stockActual) || 0;
+            form.appendChild(inputStock);
+
+            const inputMotivo = document.createElement('input');
+            inputMotivo.type = 'hidden';
+            inputMotivo.name = 'stock_motivo';
+            inputMotivo.value = this.modalMotivo || 'Ajuste Manual en Edición';
+            form.appendChild(inputMotivo);
+
+            // Campos para atributos individuales (talla_producto, color_producto, diseno_producto)
+            const inputT = document.createElement('input');
+            inputT.type = 'hidden';
+            inputT.name = 'talla_producto';
+            inputT.value = this.inputTallas;
+            form.appendChild(inputT);
+
+            const inputC = document.createElement('input');
+            inputC.type = 'hidden';
+            inputC.name = 'color_producto';
+            inputC.value = this.inputColores;
+            form.appendChild(inputC);
+
+            const inputD = document.createElement('input');
+            inputD.type = 'hidden';
+            inputD.name = 'diseno_producto';
+            inputD.value = this.inputDisenos;
+            form.appendChild(inputD);
+
+            if (this.variantes.length > 0) {
+                const variantesParaEnviar = this.variantes.map(v => ({
+                    ...v,
+                    stock: parseInt(v.stock) || 0,
+                    precio: parseFloat(v.precio) || 0
+                }));
+                const inputVar = document.createElement('input');
+                inputVar.type = 'hidden';
+                inputVar.name = 'json_variantes';
+                inputVar.value = JSON.stringify(variantesParaEnviar);
+                form.appendChild(inputVar);
+            }
+
+            form.submit();
+        }
+    }
+}
+
+function imagePreview(initialUrl = null) {
+    return {
+        url: initialUrl,
+        updatePreview(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.url = URL.createObjectURL(file);
+            }
+        }
+    }
+}
+
+function barcodeScanner(valorInicial = '') {
+    return {
+        codigo: valorInicial,
+        startScanner() { alert("Escáner..."); }
+    }
+}
+
+
+function abrirSelectorCategoria(el, dispatchFn) {
+    const modal = document.getElementById('modalSelectorCat');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('buscarCatModal').value = '';
+    filtrarCatModal('');
+    setTimeout(() => document.getElementById('buscarCatModal').focus(), 100);
+}
+
+function cerrarSelectorCategoria() {
+    const modal = document.getElementById('modalSelectorCat');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function filtrarCatModal(q) {
+    document.querySelectorAll('.cat-item').forEach(btn => {
+        btn.style.display = btn.dataset.search.includes(q.toLowerCase()) ? '' : 'none';
+    });
+}
+
+function seleccionarCategoria(id, nombre) {
+    window.dispatchEvent(new CustomEvent('categoria-seleccionada', {
+        detail: { id: id, nombre: nombre }
+    }));
+    cerrarSelectorCategoria();
+}
+</script>
+
+<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0" 
+        x-data='productoForm({
+            precio_venta: <?= (float)$p->precio_venta ?>,
+            stock: <?= (int)$p->stock ?>,
+            nombre_base: <?= json_encode($p->nombre) ?>,
+
+            descripcion: <?= json_encode($p->descripcion ?? "") ?>,
+            id_categoria: <?= (int)($p->id_categoria ?? 0) ?>,
+            categoria: <?= json_encode($p->categoria ?? "") ?>,
+
+            tallas_init: <?= json_encode($tallas_init ?? "") ?>,
+            colores_init: <?= json_encode($colores_init ?? "") ?>,
+            disenos_init: <?= json_encode($disenos_init ?? "") ?>,
+
+            variantes: []
+        })'
+        >
+    
     <div class="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
         
         <!-- Navbar Superior de Acción -->
@@ -15,225 +260,225 @@
                 </a>
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight">Editar Producto</h1>
                 <p class="text-slate-400 text-sm mt-1">
-                    Modificando registro #<?= $p->id ?> · <span class="font-bold text-slate-600"><?= $this->session->userdata('sucursal_nombre') ?></span>
+                    ID: #<?= $p->id ?> · <span class="font-bold text-slate-600"><?= $this->session->userdata('sucursal_nombre') ?></span>
                 </p>
             </div>
             
             <div class="flex gap-3">
-                <button type="submit" form="formProducto" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/25 active:scale-95 text-sm">
-                    <i class="fas fa-sync-alt mr-2"></i> Actualizar Cambios
+                <button type="button" @click="submitForm()" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/25 active:scale-95 text-sm">
+                    <i class="fas fa-sync-alt mr-2"></i> Guardar Cambios
                 </button>
             </div>
         </div>
 
-        <form id="formProducto" action="<?= base_url('productos/actualizar/'.$p->id) ?>" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <form id="formProducto" action="<?= base_url('productos/actualizar/'.$p->id) ?>" method="POST" enctype="multipart/form-data" 
+              class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            <!-- SECCIÓN IZQUIERDA: Identificación y Detalles (Col 8) -->
             <div class="lg:col-span-8 space-y-6">
-                
                 <!-- Card: Identificación -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 pb-4 flex items-center">
-                        <i class="fas fa-tag mr-2 text-blue-500"></i> Datos de Identificación
+                        <i class="fas fa-tag mr-2 text-blue-500"></i> Datos del Producto
                     </h3>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Código de Barras -->
-                        <div class="flex flex-col gap-2" x-data="barcodeScanner('<?= $p->codigo_barras ?>')">
+                        <div class="flex flex-col gap-2" x-data="barcodeScanner('<?= $base_barcode ?>')">
                             <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Código de Barras</label>
-                            <div class="flex gap-2">
-                                <div class="relative flex-1">
-                                    <input type="text" name="codigo_barras" x-model="codigo" required 
-                                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all font-mono text-sm font-bold">
-                                    <template x-if="codigo">
-                                        <button @click="codigo = ''" type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 transition-colors">
-                                            <i class="fas fa-times-circle text-xs"></i>
-                                        </button>
-                                    </template>
-                                </div>
-                                <button type="button" @click="startScanner()" 
-                                        class="flex items-center justify-center px-4 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-500 rounded-xl transition-all border border-slate-200 shadow-sm">
-                                    <i class="fas fa-qrcode"></i>
-                                </button>
-                            </div>
+                            <input type="text" name="codigo_barras" x-model="codigo" required 
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-mono text-sm font-bold">
                         </div>
 
-                        <!-- Categoría con Modal -->
-                        <div class="flex flex-col gap-2" 
-                             x-data="{ 
-                                catNombre: '<?= htmlspecialchars($p->categoria ?? '', ENT_QUOTES) ?>', 
-                                catId: '<?= (int)$p->id_categoria ?: '' ?>' 
-                             }">
-                            <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Categoría</label>
-                            <input type="hidden" name="categoria" :value="catNombre">
-                            <input type="hidden" name="id_categoria" :value="catId">
-                            <div class="flex gap-2">
-                                <div class="relative flex-1">
-                                    <input type="text" :value="catNombre" readonly
-                                        placeholder="Seleccionar..."
-                                        @click="abrirSelectorCategoria($el, $dispatch)"
-                                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none cursor-pointer hover:border-blue-400 transition-all text-sm font-black text-slate-800">
-                                </div>
-                                <button type="button" @click="abrirSelectorCategoria(null, $dispatch)"
-                                    class="px-4 py-3 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-500 rounded-xl transition-all border border-slate-200">
-                                    <i class="fas fa-search text-xs"></i>
-                                </button>
-                            </div>
-                            <div x-on:categoria-seleccionada.window="catNombre = $event.detail.nombre; catId = $event.detail.id"></div>
-                        </div>
+            <div class="flex flex-col gap-2">
+                <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Categoría
+                </label>
+
+                <!-- Valores que se enviarán al backend -->
+                <input type="hidden" name="categoria" :value="categoriaNombre">
+                <input type="hidden" name="id_categoria" :value="categoriaId">
+
+                <!-- Input visible -->
+                <input 
+                    type="text"
+                    x-model="categoriaNombre"
+                    readonly
+                    @click="abrirSelectorCategoria($el, $dispatch)"
+                    placeholder="Seleccionar categoría"
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none cursor-pointer font-bold text-sm"
+                >
+
+                <!-- Evento cuando el modal selecciona -->
+                <div 
+                    x-on:categoria-seleccionada.window="
+                        categoriaNombre = $event.detail.nombre;
+                        categoriaId = $event.detail.id;
+                    ">
+                </div>
+            </div>
                     </div>
 
-                    <!-- Nombre del Producto -->
                     <div class="flex flex-col gap-2">
                         <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Comercial</label>
                         <input type="text" name="nombre" value="<?= htmlspecialchars($p->nombre) ?>" required
-                            class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all font-black text-slate-800 text-base">
+                            class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-black text-slate-800 text-base">
                     </div>
 
-                    <!-- Descripción y Almacén -->
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                         <div class="md:col-span-8 flex flex-col gap-2">
-                            <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Descripción corta</label>
-                            <textarea name="descripcion" rows="2" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all text-sm font-medium"><?= htmlspecialchars($p->descripcion) ?></textarea>
+                            <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Descripción</label>
+                            <textarea name="descripcion" rows="2" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"><?= htmlspecialchars($p->descripcion) ?></textarea>
                         </div>
                         <div class="md:col-span-4 flex flex-col gap-2">
-                            <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Ubicación / Almacén</label>
-                            <select name="id_almacen" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 transition-all font-bold text-slate-700 text-sm">
+                            <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Almacén</label>
+                            <select name="id_almacen" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm">
                                 <?php foreach($almacenes as $alm): ?>
-                                    <option value="<?= $alm->id ?>" <?= ($p->id_almacen == $alm->id) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($alm->nombre) ?>
-                                    </option>
+                                    <option value="<?= $alm->id ?>" <?= ($p->id_almacen == $alm->id) ? 'selected' : '' ?>><?= htmlspecialchars($alm->nombre) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <!-- Card: Inventario y Costos -->
+                <!-- Card: Precios e Inventario -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 pb-4 flex items-center">
-                        <i class="fas fa-coins mr-2 text-amber-500"></i> Control Económico y Stock
+                        <i class="fas fa-coins mr-2 text-amber-500"></i> Precios e Inventario
                     </h3>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+
+                    <!-- Inputs de Generación de Variantes (Igual que en Nuevo) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                         <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">P. Compra</label>
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">S/</span>
-                                <input type="number" name="precio_compra" step="0.01" value="<?= $p->precio_compra ?>"
-                                    class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-sm">
-                            </div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tallas</label>
+                            <input type="text" x-model="inputTallas" placeholder="S, M, L" 
+                                class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-bold text-sm">
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-black text-blue-600 uppercase tracking-widest">P. Venta Público</label>
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">S/</span>
-                                <input type="number" name="precio_venta" step="0.01" value="<?= $p->precio_venta ?>" required
-                                    class="w-full pl-8 pr-4 py-3 bg-blue-50 border border-blue-200 rounded-xl outline-none focus:border-blue-400 transition-all font-black text-blue-800 text-lg">
-                            </div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Colores</label>
+                            <input type="text" x-model="inputColores" placeholder="Rojo, Azul" 
+                                class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-bold text-sm">
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Stock Actual</label>
-                            <input type="number" name="stock" value="<?= $p->stock ?>"
-                                class="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Diseños</label>
+                            <input type="text" x-model="inputDisenos" placeholder="Burbuja, Dragón" 
+                                class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-bold text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Precio Venta (Base)</label>
+                            <input type="number" name="precio_venta" x-model="precioBase" step="0.01" 
+                                class="w-full px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-800 text-lg">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio Compra</label>
+                            <input type="number" name="precio_compra" value="<?= $p->precio_compra ?>" step="0.01"
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm">
                         </div>
                         <div class="flex flex-col gap-2">
                             <label class="text-[10px] font-black text-rose-600 uppercase tracking-widest">Alerta Mínima</label>
                             <input type="number" name="stock_minimo" value="<?= $p->stock_minimo ?>"
-                                class="w-full px-4 py-3 bg-rose-50 border border-rose-100 rounded-xl font-black text-rose-800">
+                                class="w-full px-4 py-3 bg-rose-50 border border-rose-100 rounded-xl font-black">
                         </div>
+                    </div>
+
+
+                    <!-- Stock Maestro (Solo si no tiene variantes) -->
+                    <div x-show="variantes.length === 0" class="pt-4 border-t border-slate-50 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 border border-emerald-100">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Stock Actual</p>
+                                <p class="text-sm font-black text-slate-800"><span x-text="stockActual"><?= $p->stock ?></span> Unidades</p>
+                            </div>
+                        </div>
+                        <button type="button" @click="abrirModalStock()"
+                            class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-black uppercase text-[10px] shadow-lg shadow-emerald-500/20 active:scale-95">
+                            <i class="fas fa-plus-circle mr-1"></i> Ajustar Saldo
+                        </button>
+                    </div>
+
+                    <!-- Tabla de Variantes -->
+                    <div class="overflow-hidden border border-slate-100 rounded-2xl" x-show="variantes.length > 0">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 font-black text-slate-400 uppercase tracking-widest">
+                                <tr>
+                                    <th class="px-4 py-3">Variante</th>
+                                    <th class="px-4 py-3 text-right">Precio</th>
+                                    <th class="px-4 py-3 text-center">Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                <template x-for="(v, index) in variantes" :key="index">
+                                    <tr>
+                                        <td class="px-4 py-3 font-black text-slate-700" x-text="v.nombre"></td>
+                                        <td class="px-4 py-3 text-right">
+                                            <input type="number" x-model="v.precio" step="0.01" class="w-20 px-2 py-1 bg-blue-50 border border-blue-100 rounded-lg text-right font-bold">
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <button type="button" @click="abrirModalStockVariante(index)"
+                                                class="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg font-black border border-emerald-100">
+                                                <span x-text="v.stock"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- SECCIÓN DERECHA: Imagen y Publicación (Col 4) -->
+            <!-- Columna Derecha -->
             <div class="lg:col-span-4 space-y-6">
-                
-                <!-- Card: Fotografía -->
+                <!-- Fotografía -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" x-data="imagePreview('<?= $foto_url ?>')">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">FOTOGRAFÍA</h3>
-                    
                     <div class="relative flex flex-col items-center">
-                        <input type="file" name="imagen" accept="image/*" capture="environment" class="hidden" x-ref="imageInput" @change="updatePreview">
-                        
-                        <div @click="$refs.imageInput.click()" 
-                            class="w-full aspect-square max-w-[240px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden transition-all hover:bg-blue-50 hover:border-blue-300 cursor-pointer group relative">
-                            
-                            <template x-if="url">
-                                <img :src="url" class="w-full h-full object-cover">
-                            </template>
-
-                            <template x-if="!url">
-                                <div class="text-center p-6 space-y-2">
-                                    <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                                        <i class="fas fa-camera text-slate-300 text-xl"></i>
-                                    </div>
-                                    <p class="text-[11px] font-black text-slate-400 uppercase">Sin Imagen</p>
-                                </div>
-                            </template>
-
-                            <div class="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors"></div>
+                        <input type="file" name="imagen" accept="image/*" class="hidden" x-ref="imageInput" @change="updatePreview">
+                        <div @click="$refs.imageInput.click()" class="w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center overflow-hidden cursor-pointer hover:bg-blue-50">
+                            <template x-if="url"><img :src="url" class="w-full h-full object-cover"></template>
+                            <template x-if="!url"><i class="fas fa-camera text-slate-300 text-2xl"></i></template>
                         </div>
-
-                        <template x-if="url">
-                            <button type="button" @click="url = null; $refs.imageInput.value = ''" 
-                                class="mt-4 flex items-center gap-2 text-[10px] font-black text-rose-500 hover:text-rose-700 transition-colors uppercase tracking-widest">
-                                <i class="fas fa-times-circle"></i> Quitar Imagen
-                            </button>
-                        </template>
                     </div>
-                </div>
-
-                <!-- Botón Secundario Actualizar (Mobile) -->
-                <div class="lg:hidden">
-                    <button type="submit" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/25 active:scale-95 transition-all">
-                        Actualizar Producto
-                    </button>
-                </div>
-
-                <!-- Resumen de Movimientos Info -->
-                <div class="p-5 rounded-2xl bg-slate-800 text-white space-y-3">
-                    <div class="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
-                        <i class="fas fa-history"></i> Historial de Precios
-                    </div>
-                    <p class="text-[11px] text-slate-300 leading-relaxed font-medium">
-                        Cualquier cambio en el <span class="text-white font-bold text-xs italic">Precio de Venta</span> se reflejará instantáneamente en el punto de venta (POS).
-                    </p>
                 </div>
             </div>
         </form>
     </div>
+
+
+<!-- ======= MODAL DE AJUSTE ======= -->
+<div x-show="isStockModalOpen" class="fixed inset-0 z-[1001] flex items-center justify-center p-4 transition-all" x-cloak>
+    <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-md" @click="isStockModalOpen = false"></div>
+    <div class="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-slide-up">
+        <div class="p-8 border-b border-slate-50 text-center">
+            <h3 class="text-xl font-black text-slate-800 tracking-tight">Ajustar Saldo</h3>
+            <p class="text-slate-400 text-xs mt-2 uppercase font-bold">Registro en Kardex</p>
+        </div>
+        <div class="p-8 space-y-6">
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nuevo Stock</label>
+                <input type="number" x-model="modalCant" class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-2xl font-black text-slate-800 text-center outline-none focus:border-emerald-500">
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Motivo del ajuste</label>
+                <select x-model="modalMotivo" class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-500">
+                    <option value="Ajuste Manual en Edición">Ajuste por Inventario</option>
+                    <option value="Donacion">Donación / Salida</option>
+                    <option value="Devolucion">Devolución</option>
+                </select>
+            </div>
+            <button type="button" @click="confirmarStock()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">
+                Actualizar Stock
+            </button>
+        </div>
+    </div>
 </div>
 
-<script>
-function imagePreview(initialUrl = null) {
-    return {
-        url: initialUrl,
-        updatePreview(event) {
-            const file = event.target.files[0];
-            if (file) {
-                if (this.url && this.url.startsWith('blob:')) {
-                    URL.revokeObjectURL(this.url);
-                }
-                this.url = URL.createObjectURL(file);
-            }
-        }
-    }
-}
-
-function barcodeScanner(valorInicial = '') {
-    return {
-        codigo: valorInicial,
-        startScanner() {
-            alert("Accediendo a la cámara para escanear...");
-        }
-    }
-}
-</script>
-
-<style>
-    [x-cloak] { display: none !important; }
-</style>
+    </div>
+</div>
 
 <!-- ======= MODAL SELECTOR DE CATEGORÍA ======= -->
 <div id="modalSelectorCat" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
@@ -241,50 +486,54 @@ function barcodeScanner(valorInicial = '') {
     <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up">
         <!-- Header -->
         <div class="p-6 border-b border-slate-50 flex items-center justify-between">
-            <h3 class="text-xl font-black text-slate-800 tracking-tight">Cambiar Categoría</h3>
+            <div>
+                <h3 class="text-xl font-black text-slate-800">Elegir Categoría</h3>
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Catálogo compartido</p>
+            </div>
             <button onclick="cerrarSelectorCategoria()" class="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all">
                 <i class="fas fa-times"></i>
             </button>
         </div>
+        
+        <!-- Buscador -->
+        <div class="px-6 py-4 bg-slate-50/50">
+            <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+                <input type="text" id="buscarCatModal" placeholder="Filtrar por nombre..."
+                    class="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:border-blue-400 transition-all text-sm font-bold shadow-sm"
+                    oninput="filtrarCatModal(this.value)" autocomplete="off">
+            </div>
+        </div>
+
         <!-- Lista -->
-        <div class="overflow-y-auto max-h-[400px] px-3 py-3" id="listaCatModal">
+        <div class="overflow-y-auto max-h-[350px] px-3 py-2" id="listaCatModal">
             <?php foreach ($categorias as $c): ?>
             <button type="button"
-                class="cat-item w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-blue-50/50 text-left transition-all group mb-1"
+                class="cat-item w-full flex items-center justify-between px-4 py-4 rounded-2xl hover:bg-blue-50/50 text-left transition-all group mb-1"
                 data-search="<?= strtolower(htmlspecialchars($c->nombre)) ?>"
                 onclick="seleccionarCategoria(<?= $c->id ?>, '<?= htmlspecialchars($c->nombre, ENT_QUOTES) ?>')">
                 
-                <div class="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm"
-                    style="background:<?= $c->color ?>; color: white;">
-                    <i class="fas <?= $c->icono ?> text-lg"></i>
+                <div class="flex items-center gap-4">
+                    <div class="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm"
+                        style="background:<?= $c->color ?>; color: white;">
+                        <i class="fas <?= $c->icono ?> text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-slate-800 group-hover:text-blue-600 transition-colors"><?= htmlspecialchars($c->nombre) ?></span>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ID: #<?= $c->id ?></span>
+                    </div>
                 </div>
-                <span class="font-black text-slate-800 group-hover:text-blue-600 transition-colors text-base"><?= htmlspecialchars($c->nombre) ?></span>
+                
+                <i class="fas fa-chevron-right text-slate-200 group-hover:text-blue-400 transition-all"></i>
             </button>
             <?php endforeach; ?>
         </div>
     </div>
 </div>
 
-<script>
-function abrirSelectorCategoria(el, dispatchFn) {
-    const modal = document.getElementById('modalSelectorCat');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
-function cerrarSelectorCategoria() {
-    const modal = document.getElementById('modalSelectorCat');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-}
-function seleccionarCategoria(id, nombre) {
-    window.dispatchEvent(new CustomEvent('categoria-seleccionada', {
-        detail: { id: id, nombre: nombre }
-    }));
-    cerrarSelectorCategoria();
-}
-</script>
 
 <style>
+    [x-cloak] { display: none !important; }
     @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .animate-slide-up { animation: slide-up 0.3s ease-out; }
 </style>

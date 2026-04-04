@@ -8,7 +8,7 @@
         filterCat: '', 
         filterAlm: '',
         page: 1,
-        perPage: 12,
+        perPage: 10,
         get filteredItems() {
             const q = this.search.toLowerCase();
             return this.items.filter(i => {
@@ -220,19 +220,19 @@
                                 </td>
                                 <td class="px-6 py-5 text-center">
                                     <div class="inline-flex flex-col items-center">
-                                        <span :class="parseFloat(p.stock) <= parseFloat(p.stock_minimo) ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-100/30'"
+                                        <span :class="parseFloat(p.stock) <= Math.max(2, parseFloat(p.stock_minimo) || 0) ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-100/30'"
                                               class="px-5 py-1.5 rounded-xl text-xs font-black border shadow-lg"
                                               x-text="parseFloat(p.stock).toFixed(0)">
                                         </span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-5 text-center">
-                                    <template x-if="parseFloat(p.stock) <= parseFloat(p.stock_minimo)">
+                                    <template x-if="parseFloat(p.stock) <= Math.max(2, parseFloat(p.stock_minimo) || 0)">
                                         <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[9px] font-black uppercase tracking-[0.1em] animate-pulse">
                                             <i class="fas fa-exclamation-triangle text-[10px]"></i> Crítico
                                         </span>
                                     </template>
-                                    <template x-if="parseFloat(p.stock) > parseFloat(p.stock_minimo)">
+                                    <template x-if="parseFloat(p.stock) > Math.max(2, parseFloat(p.stock_minimo) || 0)">
                                         <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">Normal</span>
                                     </template>
                                 </td>

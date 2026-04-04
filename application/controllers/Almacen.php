@@ -55,7 +55,14 @@ class Almacen extends CI_Controller {
         $id_producto  = (int) $this->input->post('id_producto');
         $tipo         = $this->input->post('tipo_movimiento'); // Entrada / Salida
         $cantidad     = (float) $this->input->post('cantidad');
-        $motivo       = $this->input->post(  'motivo') ?: 'Ajuste';
+        $motivo_base  = $this->input->post('motivo') ?: 'Ajuste';
+        $desc_ajuste  = trim($this->input->post('descripcion_ajuste'));
+        
+        if ($motivo_base === 'Ajuste' && !empty($desc_ajuste)) {
+            $motivo = 'Ajuste - ' . $desc_ajuste;
+        } else {
+            $motivo = $motivo_base;
+        }
 
         if ($cantidad <= 0 || !in_array($tipo, ['Entrada', 'Salida'])) {
             $this->session->set_flashdata('msg', 'Datos de ajuste inválidos');

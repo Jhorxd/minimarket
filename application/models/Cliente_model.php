@@ -12,7 +12,26 @@ class Cliente_model extends CI_Model {
             $this->db->where('estado', 1);
         }
         $this->db->where('id_sucursal', $id_sucursal);
+        $this->db->where('id_sucursal', $id_sucursal);
         $this->db->order_by('nombre', 'ASC');
+        return $this->db->get($this->table)->result();
+    }
+
+    public function get_clientes_pos($busqueda = '')
+    {
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        $this->db->where('estado', 1);
+        $this->db->where('id_sucursal', $id_sucursal);
+        
+        if (!empty($busqueda)) {
+            $this->db->group_start();
+            $this->db->like('nombre', $busqueda);
+            $this->db->or_like('nro_documento', $busqueda);
+            $this->db->group_end();
+        }
+        
+        $this->db->order_by('nombre', 'ASC');
+        $this->db->limit(30);
         return $this->db->get($this->table)->result();
     }
 
@@ -39,5 +58,17 @@ class Cliente_model extends CI_Model {
     {
         $this->db->where('id_cliente', $id_cliente);
         return $this->db->update($this->table, ['estado' => 0]);
+    }
+    
+    public function existe_documento($nro_documento, $id_cliente_excluido = null) {
+        if (empty(trim($nro_documento))) return false;
+        
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        $this->db->where('id_sucursal', $id_sucursal);
+        $this->db->where('nro_documento', trim($nro_documento));
+        if ($id_cliente_excluido) {
+            $this->db->where('id_cliente !=', $id_cliente_excluido);
+        }
+        return $this->db->get($this->table)->num_rows() > 0;
     }
 }

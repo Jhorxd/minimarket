@@ -4,13 +4,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Compra_model extends CI_Model {
 
     // Listar compras con proveedor y usuario
-    public function listar_compras($id_sucursal)
+    public function listar_compras($id_sucursal, $desde = null, $hasta = null)
     {
+        $where = "WHERE c.id_sucursal = ?";
+        $params = [$id_sucursal];
+
+        if ($desde && $hasta) {
+            $where .= " AND DATE(c.fecha_registro) BETWEEN ? AND ?";
+            $params[] = $desde;
+            $params[] = $hasta;
+        }
+
         return $this->db->query("
             SELECT  c.id,
                     c.fecha_registro,
                     c.total,
                     c.proveedor,
+                    c.estado,
                     pr.razon_social   AS proveedor_razon,
                     u.nombre          AS usuario
             FROM compras c
@@ -18,9 +28,9 @@ class Compra_model extends CI_Model {
                 ON pr.id_proveedor = c.id_proveedor
             JOIN usuarios u
                 ON u.id = c.id_usuario
-            WHERE c.id_sucursal = ?
+            $where
             ORDER BY c.fecha_registro DESC
-        ", [$id_sucursal])->result();
+        ", $params)->result();
     }
 
     // Proveedores activos (estado=1)
@@ -113,6 +123,9 @@ class Compra_model extends CI_Model {
                 'cantidad'      => $cantidad,
                 'precio_compra' => $precio_compra,
                 'subtotal'      => $subtotal,
+                'talla'         => $it['talla'] ?? null,
+                'color'         => $it['color'] ?? null,
+                'diseno'        => $it['diseno'] ?? null,
             ]);
 
             // Actualizar stock (Entrada)
@@ -146,5 +159,58 @@ class Compra_model extends CI_Model {
         $this->db->trans_complete();
 
         return $this->db->trans_status() ? $id_compra : false;
+    }
+
+    public function anular_compra($id_compra, $motivo)
+    {
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        $compra = $this->db->get_where('compras', ['id' => $id_compra, 'id_sucursal' => $id_sucursal])->row();
+        
+        if (!$compra || $compra->estado === 'anulada') {
+            return false;
+        }
+
+        $this->db->trans_start();
+
+        // 1) Actualizar cabecera
+        $this->db->where('id', $id_compra);
+        $this->db->update('compras', [
+            'estado' => 'anulada',
+            'motivo_anulacion' => $motivo
+        ]);
+
+        // 2) Revertir stock (Salida) del detalle
+        $detalles = $this->db->get_where('compra_detalle', ['id_compra' => $id_compra])->result();
+        
+        foreach ($detalles as $det) {
+            // Restar stock (Salida)
+            $this->db->query("
+                UPDATE productos 
+                SET stock = stock - ? 
+                WHERE id = ? AND id_sucursal = ?
+            ", [$det->cantidad, $det->id_producto, $id_sucursal]);
+
+            // Stock resultante
+            $producto = $this->db->get_where('productos', [
+                'id' => $det->id_producto, 
+                'id_sucursal' => $id_sucursal
+            ])->row();
+
+            // Kardex (Salida por Anulación)
+            $this->db->insert('kardex', [
+                'id_sucursal'      => $id_sucursal,
+                'id_producto'      => $det->id_producto,
+                'tipo_movimiento'  => 'Salida',
+                'motivo'           => 'Ajuste', // Podría ser 'Anulacion' si fuera soportado
+                'doc_tipo'         => 'Compra',
+                'doc_id'           => $id_compra,
+                'cantidad'         => $det->cantidad,
+                'stock_resultante' => $producto ? $producto->stock : 0,
+                'fecha'            => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
     }
 }

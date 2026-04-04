@@ -10,13 +10,26 @@
                 <h1 class="text-3xl font-black text-slate-800">
                     Detalle de Compra
                 </h1>
-                <p class="mt-1 text-xs text-slate-400">
-                    Compra #<?= str_pad($compra->id, 6, '0', STR_PAD_LEFT); ?> · Registrada el
-                    <?= date('d/m/Y H:i', strtotime($compra->fecha_registro)); ?>
+                <p class="mt-1 text-xs text-slate-400 flex items-center gap-2">
+                    Compra #<?= str_pad($compra->id, 6, '0', STR_PAD_LEFT); ?> · 
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border <?= ($compra->estado === 'anulada') ? 'bg-red-50 text-red-500 border-red-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100' ?>">
+                        <?= $compra->estado; ?>
+                    </span>
+                    · <?= date('d/m/Y H:i', strtotime($compra->fecha_registro)); ?>
                 </p>
             </div>
 
             <div class="flex items-center gap-3">
+                <?php if ($compra->estado === 'completada'): ?>
+                    <button onclick="anularCompraDetalle(<?= $compra->id ?>)"
+                        class="px-4 py-2 rounded-xl border border-rose-200 bg-white text-rose-600 text-sm font-semibold hover:bg-rose-600 hover:text-white transition-all flex items-center gap-2">
+                        <i class="fas fa-times"></i> Anular Compra
+                    </button>
+                <?php endif; ?>
+                <a href="<?= base_url('compras/ticket_pdf/' . $compra->id); ?>" target="_blank"
+                   class="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-600 hover:text-white transition-all flex items-center gap-2">
+                    <i class="fas fa-file-pdf"></i> PDF (Ticket)
+                </a>
                 <a href="<?= base_url('compras/compras_index'); ?>"
                    class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50">
                     Volver al listado
@@ -52,10 +65,15 @@
                 <div class="flex flex-col gap-1 text-sm text-slate-700">
                     <div class="flex justify-between">
                         <span class="text-xs text-slate-500">Total compra</span>
-                        <span class="font-black text-slate-900">
+                        <span class="font-black <?= ($compra->estado === 'anulada') ? 'text-red-500 line-through' : 'text-slate-900' ?>">
                             S/ <?= number_format($compra->total, 2); ?>
                         </span>
                     </div>
+                    <?php if ($compra->estado === 'anulada'): ?>
+                        <div class="mt-2 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] text-red-600 uppercase font-black tracking-widest">
+                            <i class="fas fa-info-circle mr-1"></i> Motivo: <?= htmlspecialchars($compra->motivo_anulacion); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -116,3 +134,38 @@
 
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function anularCompraDetalle(id) {
+    Swal.fire({
+        title: '¿Anular esta compra?',
+        text: 'Se restará el stock y se registrará la salida en Kardex.',
+        input: 'text',
+        inputPlaceholder: 'Motivo...',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        preConfirm: (motivo) => {
+            if (!motivo) Swal.showValidationMessage('El motivo es obligatorio');
+            return motivo;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch('<?= base_url('compras/anular_compra') ?>', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id_compra: id, motivo: result.value})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('Anulada', 'Compra anulada con éxito.', 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Error', data.message || 'Error', 'error');
+                }
+            });
+        }
+    });
+}
+</script>
