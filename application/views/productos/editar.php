@@ -9,6 +9,9 @@
     $tallas_init = !empty($p->talla) ? $p->talla : '';
     $colores_init = !empty($p->color) ? $p->color : '';
     $disenos_init = !empty($p->diseno) ? $p->diseno : '';
+
+    // Limpiar el nombre base (quitar lo que está entre paréntesis) para edición limpia
+    $nombre_base = preg_replace('/\s*\(.*?\)\s*$/', '', $p->nombre);
 ?>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/@ericblade/quagga2@latest/dist/quagga.min.js"></script>
@@ -24,25 +27,43 @@ function productoForm(iniciales) {
         inputTallas: iniciales.tallas_init || '',
         inputColores: iniciales.colores_init || '',
         inputDisenos: iniciales.disenos_init || '',
+        nombreBase: iniciales.nombre_base || '',
         isStockModalOpen: false,
         currentVarianteIndex: null,
         modalCant: 0,
-        modalMotivo: 'Ajuste Manual en Edición',
-        variantes: iniciales.variantes || [],
+        modalMotivo: 'Ajuste Inicial',
+        nombre: '',
+        variantes: [],
         
-        init() {
-            this.$watch('precioBase', (val) => {
-                // Si hay variantes, actualizamos el precio de todas las variantes
-                if (this.variantes.length > 0) {
-                    this.variantes.forEach(v => v.precio = val);
-                }
-            });
+        initData() {
+            // Inicializar variantes con las que ya existen en la DB para no duplicar
+            this.variantes = JSON.parse(JSON.stringify(iniciales.variantes_db));
+            
             this.$watch('inputTallas', () => this.generarVariantes(true));
             this.$watch('inputColores', () => this.generarVariantes(true));
             this.$watch('inputDisenos', () => this.generarVariantes(true));
         },
 
+        toggleTalla(t) {
+            let tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
+            if (tallas.includes(t)) {
+                tallas = tallas.filter(s => s !== t);
+            } else {
+                tallas.push(t);
+            }
+            this.inputTallas = tallas.join(', ');
+        },
+
+        isTallaSelected(t) {
+            return this.inputTallas.split(',').map(s => s.trim()).includes(t);
+        },
+
         generarVariantes(manualChange = false) {
+            const isCurrentProduct = (c) => {
+                 return (c.talla || '') == (iniciales.id_actual ? (iniciales.talla_actual || '') : '') && 
+                        (c.color || '') == (iniciales.id_actual ? (iniciales.color_actual || '') : '') && 
+                        (c.diseno || '') == (iniciales.id_actual ? (iniciales.diseno_actual || '') : '');
+            };
             const tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
             const colores = this.inputColores.split(',').map(s => s.trim()).filter(s => s !== '');
             const disenos = this.inputDisenos.split(',').map(s => s.trim()).filter(s => s !== '');
@@ -73,26 +94,38 @@ function productoForm(iniciales) {
                 combinations.forEach(c => disenos.forEach(d => next.push({...c, diseno: d})));
                 combinations = next;
             }
-
-            // Mapeo inteligente
             this.variantes = combinations.map(c => {
-                const nombre = `${iniciales.nombre_base} (${c.talla || ''} ${c.color || ''} ${c.diseno || ''})`.trim();
-                const existente = this.variantes.find(v => 
+                const attrs = [c.talla, c.color, c.diseno].filter(Boolean).join(' ');
+                const nombreFull = attrs ? `${this.nombreBase} (${attrs})` : this.nombreBase;
+
+                // Prioridad 1: Buscar si esta combinación ya existe en la lista de variantes actual (editada)
+                const existenteActual = this.variantes.find(v => 
                     (v.talla || '') == (c.talla || '') && 
                     (v.color || '') == (c.color || '') && 
                     (v.diseno || '') == (c.diseno || '')
                 );
 
-                if (existente) return existente;
+                // Prioridad 2: Buscar si existe un hermano (ya en DB) para esta combinación
+                const hermanoEnDB = iniciales.variantes_db.find(h => 
+                    (h.talla || '') == (c.talla || '') && 
+                    (h.color || '') == (c.color || '') && 
+                    (h.diseno || '') == (c.diseno || '')
+                );
+
+                if (existenteActual) {
+                    existenteActual.nombre = nombreFull; 
+                    return existenteActual;
+                }
 
                 return {
-                    id: null,
-                    nombre: nombre,
+                    id: hermanoEnDB ? hermanoEnDB.id : (isCurrentProduct(c) ? iniciales.id_actual : null),
+                    nombre: nombreFull,
                     talla: c.talla || '',
                     color: c.color || '',
                     diseno: c.diseno || '',
-                    precio: this.precioBase || 0,
-                    stock: 0,
+                    precio: hermanoEnDB ? hermanoEnDB.precio : (isCurrentProduct(c) ? this.precioBase : (this.precioBase || 0)),
+                    stock: hermanoEnDB ? hermanoEnDB.stock : (isCurrentProduct(c) ? this.stockActual : 0),
+                    barcode: hermanoEnDB ? hermanoEnDB.barcode : '',
                     motivo: ''
                 };
             });
@@ -236,7 +269,11 @@ function seleccionarCategoria(id, nombre) {
         x-data='productoForm({
             precio_venta: <?= (float)$p->precio_venta ?>,
             stock: <?= (int)$p->stock ?>,
-            nombre_base: <?= json_encode($p->nombre) ?>,
+            nombre_base: <?= json_encode($nombre_base) ?>,
+            id_actual: <?= (int)$p->id ?>,
+            talla_actual: <?= json_encode($p->talla ?: "") ?>,
+            color_actual: <?= json_encode($p->color ?: "") ?>,
+            diseno_actual: <?= json_encode($p->diseno ?: "") ?>,
 
             descripcion: <?= json_encode($p->descripcion ?? "") ?>,
             id_categoria: <?= (int)($p->id_categoria ?? 0) ?>,
@@ -246,8 +283,10 @@ function seleccionarCategoria(id, nombre) {
             colores_init: <?= json_encode($colores_init ?? "") ?>,
             disenos_init: <?= json_encode($disenos_init ?? "") ?>,
 
+            variantes_db: <?= json_encode($hermanos ?? []) ?>,
             variantes: []
         })'
+        x-init="initData()"
         >
     
     <div class="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
@@ -312,14 +351,15 @@ function seleccionarCategoria(id, nombre) {
                     x-on:categoria-seleccionada.window="
                         categoriaNombre = $event.detail.nombre;
                         categoriaId = $event.detail.id;
+                        if(!nombreBase) nombreBase = categoriaNombre;
                     ">
                 </div>
             </div>
-                    </div>
+        </div>
 
                     <div class="flex flex-col gap-2">
                         <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Comercial</label>
-                        <input type="text" name="nombre" value="<?= htmlspecialchars($p->nombre) ?>" required
+                        <input type="text" name="nombre" x-model="nombreBase" required @input="generarVariantes(true)"
                             class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-black text-slate-800 text-base">
                     </div>
 
@@ -349,8 +389,17 @@ function seleccionarCategoria(id, nombre) {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                         <div class="flex flex-col gap-2">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tallas</label>
-                            <input type="text" x-model="inputTallas" placeholder="S, M, L" 
-                                class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-bold text-sm">
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                <template x-for="t in ['S','M','L','XL','XXL']" :key="t">
+                                    <button type="button" @click="toggleTalla(t)"
+                                        :class="isTallaSelected(t) ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 scale-105' : 'bg-white text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-500'"
+                                        class="w-11 h-11 flex items-center justify-center rounded-xl border text-[11px] font-black transition-all active:scale-90"
+                                        x-text="t">
+                                    </button>
+                                </template>
+                                <!-- Input invisible pero vinculado para compatibilidad -->
+                                <input type="hidden" x-model="inputTallas">
+                            </div>
                         </div>
                         <div class="flex flex-col gap-2">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Colores</label>

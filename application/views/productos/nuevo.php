@@ -14,6 +14,7 @@ function productoForm() {
         currentVarianteIndex: null,
         modalCant: 0,
         modalMotivo: 'Ajuste Inicial',
+        nombre: '',
         variantes: [],
         init() {
             this.$watch('inputTallas', () => this.generarVariantes());
@@ -22,6 +23,18 @@ function productoForm() {
             this.$watch('precioBase', (val) => {
                 this.variantes.forEach(v => v.precio = val);
             });
+        },
+        toggleTalla(t) {
+            let tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
+            if (tallas.includes(t)) {
+                tallas = tallas.filter(s => s !== t);
+            } else {
+                tallas.push(t);
+            }
+            this.inputTallas = tallas.join(', ');
+        },
+        isTallaSelected(t) {
+            return this.inputTallas.split(',').map(s => s.trim()).includes(t);
         },
         generarVariantes() {
             const tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
@@ -47,16 +60,19 @@ function productoForm() {
                 combinations.forEach(c => disenos.forEach(d => next.push({...c, diseno: d})));
                 combinations = next;
             }
-            this.variantes = combinations.map((c, i) => ({
-                talla: c.talla || '',
-                color: c.color || '',
-                diseno: c.diseno || '',
-                nombre: `${c.talla || ''} ${c.color || ''} ${c.diseno || ''}`.trim(),
-                precio: this.precioBase || 0,
-                barcode: '',
-                stock: 0,
-                motivo: 'Ajuste Inicial'
-            }));
+            this.variantes = combinations.map((c, i) => {
+                const attrs = [c.talla, c.color, c.diseno].filter(Boolean).join(' ');
+                return {
+                    talla: c.talla || '',
+                    color: c.color || '',
+                    diseno: c.diseno || '',
+                    nombre: attrs ? `${this.nombre} (${attrs})` : this.nombre,
+                    precio: this.precioBase || 0,
+                    barcode: '',
+                    stock: 0,
+                    motivo: 'Ajuste Inicial'
+                };
+            });
         },
         abrirModalStock() {
             this.currentVarianteIndex = null;
@@ -210,6 +226,7 @@ function barcodeScanner() {
                             <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Categoría</label>
                             <input type="hidden" name="categoria" :value="catNombre">
                             <input type="hidden" name="id_categoria" :value="catId">
+                            <div x-on:categoria-seleccionada.window="catNombre = $event.detail.nombre; catId = $event.detail.id; if(!nombre) nombre = catNombre"></div>
                             <div class="flex gap-2">
                                 <div class="relative flex-1">
                                     <input type="text" :value="catNombre" readonly
@@ -226,14 +243,13 @@ function barcodeScanner() {
                                     <i class="fas fa-search text-xs"></i>
                                 </button>
                             </div>
-                            <div x-on:categoria-seleccionada.window="catNombre = $event.detail.nombre; catId = $event.detail.id"></div>
                         </div>
                     </div>
 
                     <!-- Nombre del Producto -->
                     <div class="flex flex-col gap-2">
                         <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Comercial</label>
-                        <input type="text" name="nombre" required placeholder="Ej: Arroz Costeño de 1kg..."
+                        <input type="text" name="nombre" x-model="nombre" required placeholder="Ej: Arroz Costeño de 1kg..." @input="generarVariantes()"
                             class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-base">
                     </div>
 
@@ -270,8 +286,17 @@ function barcodeScanner() {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
                             <div class="space-y-2">
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tallas</label>
-                                <input type="text" x-model="inputTallas" placeholder="S, M, L, XL..."
-                                    class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 transition-all text-xs font-bold shadow-sm">
+                                <div class="flex flex-wrap gap-2 pt-1">
+                                    <template x-for="t in ['S','M','L','XL','XXL']" :key="t">
+                                        <button type="button" @click="toggleTalla(t)"
+                                            :class="isTallaSelected(t) ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 scale-105' : 'bg-white text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-500'"
+                                            class="w-11 h-11 flex items-center justify-center rounded-xl border text-[11px] font-black transition-all active:scale-90"
+                                            x-text="t">
+                                        </button>
+                                    </template>
+                                    <!-- Input invisible pero vinculado para compatibilidad -->
+                                    <input type="hidden" x-model="inputTallas">
+                                </div>
                             </div>
                             <div class="space-y-2">
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Colores</label>

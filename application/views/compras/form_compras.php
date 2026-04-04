@@ -298,6 +298,30 @@ document.addEventListener('alpine:init', () => {
     }
 
     function agregarItem(p) {
+        // Verificar si el producto ya existe en la lista
+        const filasActuales = tbodyItems.querySelectorAll('tr');
+        for (let tr of filasActuales) {
+            const idInput = tr.querySelector('input[name="id_producto[]"]');
+            if (idInput && idInput.value == p.id) {
+                // Existe, incrementar cantidad en +1
+                const cantInput = tr.querySelector('.cantidad-input');
+                let cant = parseFloat(cantInput.value) || 0;
+                cantInput.value = cant + 1;
+                
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Producto ya en lista. Cantidad incrementada (+1).',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+                
+                recalcular();
+                return;
+            }
+        }
+
         const tr = document.createElement('tr');
         const precio = parseFloat(p.precio_compra || p.precio_venta || 0).toFixed(2);
 

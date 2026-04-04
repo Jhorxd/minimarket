@@ -64,11 +64,12 @@ class Productos extends CI_Controller {
 
         $ids_creados = [];
         $this->load->model('Stock_model');
-
         if ($es_variable && !empty($variantes)) {
             // Caso: Registro con Variantes (Creamos N productos independientes)
             foreach ($variantes as $v) {
-                $nombre_full = $this->input->post('nombre') . ' (' . trim($v['talla'] . ' ' . $v['color'] . ' ' . $v['diseno']) . ')';
+                $attrs = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
+                $nombre_base = $this->input->post('nombre');
+                $nombre_full = !empty($attrs) ? "$nombre_base ($attrs)" : $nombre_base;
                 
                 $data_v = array_merge($data_comun, [
                     'codigo_barras' => $v['barcode'] ?: ($this->input->post('codigo_barras').'-'.uniqid()),
@@ -143,8 +144,11 @@ class Productos extends CI_Controller {
             show_404();
         }
 
-        // Cargar variantes si es un producto maestro
-        $data['variantes'] = [];
+        // Obtener nombre base y buscar hermanos (variantes existentes)
+        $nombre_base = preg_replace('/\s*\(.*?\)\s*$/', '', $data['p']->nombre);
+        $data['hermanos'] = $this->Producto_model->get_hermanos($nombre_base, $id_sucursal);
+
+        // Cargar auxiliares
         $data['categorias'] = $this->Categoria_model->get_categorias();
         $data['almacenes']  = $this->Almacen_model->get_almacenes();
 
@@ -172,19 +176,42 @@ public function actualizar($id) {
         if ($cat) $categoria_nombre = $cat->nombre;
     }
 
+    $talla_main  = $this->input->post('talla_producto');
+    $color_main  = $this->input->post('color_producto');
+    $diseno_main = $this->input->post('diseno_producto');
+    $nombre_main = $this->input->post('nombre');
+
+    // --- CORRECCIÓN CRÍTICA: SI HAY VARIANTES, EL PRODUCTO BASE DEBE TOMAR SOLO SUS ATRIBUTOS, NO LA LISTA ---
+    $json_variantes = $this->input->post('json_variantes');
+    if ($json_variantes) {
+        $variantes_data = json_decode($json_variantes, true);
+        if (is_array($variantes_data)) {
+            foreach ($variantes_data as $vd) {
+                if (!empty($vd['id']) && $vd['id'] == $id) {
+                    $talla_main  = $vd['talla'] ?? '';
+                    $color_main  = $vd['color'] ?? '';
+                    $diseno_main = $vd['diseno'] ?? '';
+                    
+                    $attrs_vd = trim($talla_main . ' ' . $color_main . ' ' . $diseno_main);
+                    $nombre_main = !empty($attrs_vd) ? "$nombre_main ($attrs_vd)" : $nombre_main;
+                    break;
+                }
+            }
+        }
+    }
+
     $data = [
         'codigo_barras' => $this->input->post('codigo_barras'),
-        'nombre'        => $this->input->post('nombre'),
+        'nombre'        => $nombre_main,
         'descripcion'   => $this->input->post('descripcion'),
         'categoria'     => $categoria_nombre,
         'id_categoria'  => $id_categoria ?: null,
         'id_almacen'    => $this->input->post('id_almacen') ?: null,
         'precio_compra' => $this->input->post('precio_compra'),
         'precio_venta'  => $this->input->post('precio_venta'),
-        'talla'         => $this->input->post('talla_producto'), // Usaremos estos nombres para no chocar con el generador si es necesario
-        'color'         => $this->input->post('color_producto'),
-        'diseno'        => $this->input->post('diseno_producto'),
-        // El stock no se actualiza directamente aquí para mantener integridad del Kardex
+        'talla'         => $talla_main,
+        'color'         => $color_main,
+        'diseno'        => $diseno_main,
         'stock_minimo'  => $this->input->post('stock_minimo')
     ];
 
@@ -233,9 +260,20 @@ public function actualizar($id) {
             foreach ($variantes as $v) {
                 if (!empty($v['id'])) {
                     // ACTUALIZAR VARIANTE EXISTENTE
+                    $attrs_upd = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
+                    $nombre_base_upd = $this->input->post('nombre');
+                    $nombre_full_upd = !empty($attrs_upd) ? "$nombre_base_upd ($attrs_upd)" : $nombre_base_upd;
+
                     $v_data = [
+                        'nombre'       => $nombre_full_upd,
+                        'descripcion'  => $data['descripcion'],
+                        'talla'        => $v['talla'] ?? '',
+                        'color'        => $v['color'] ?? '',
+                        'diseno'       => $v['diseno'] ?? '',
                         'precio_venta' => $v['precio'],
-                        'stock_minimo' => $this->input->post('stock_minimo')
+                        'stock_minimo' => $this->input->post('stock_minimo'),
+                        'id_categoria' => $data['id_categoria'],
+                        'categoria'    => $data['categoria']
                     ];
                     $this->Producto_model->actualizar($v['id'], $id_sucursal, $v_data);
 
@@ -249,9 +287,14 @@ public function actualizar($id) {
                     }
                 } else {
                     // INSERTAR NUEVO PRODUCTO GENERADO DURANTE LA EDICIÓN
+                    $attrs_v = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
+                    $nombre_base_v = $this->input->post('nombre');
+                    $nombre_full_v = !empty($attrs_v) ? "$nombre_base_v ($attrs_v)" : $nombre_base_v;
+
                     $data_v = [
                         'id_sucursal'   => $id_sucursal,
-                        'nombre'        => $data['nombre'] . ' (' . trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? '')) . ')',
+                        'nombre'        => $nombre_full_v,
+                        'descripcion'   => $data['descripcion'],
                         'talla'         => $v['talla'] ?? '',
                         'color'         => $v['color'] ?? '',
                         'diseno'        => $v['diseno'] ?? '',
@@ -260,10 +303,28 @@ public function actualizar($id) {
                         'precio_compra' => $data['precio_compra'],
                         'stock'         => 0,
                         'id_categoria'  => $data['id_categoria'],
+                        'categoria'     => $data['categoria'],
                         'id_almacen'    => $data['id_almacen'],
                     ];
                     $new_id_v = $this->Producto_model->insertar($data_v);
                     
+                    // --- HERENCIA DE IMAGEN PARA LA NUEVA VARIANTE ---
+                    $p_base_final = $this->Producto_model->get_producto($id, $id_sucursal);
+                    if ($p_base_final && !empty($p_base_final->imagen)) {
+                        $path = './uploads/productos/';
+                        $img_base = $p_base_final->imagen;
+                        $ext_v = pathinfo($img_base, PATHINFO_EXTENSION);
+                        $nombre_archivo_v = $new_id_v . "." . $ext_v;
+                        
+                        if (file_exists($path . $img_base)) {
+                            copy($path . $img_base, $path . $nombre_archivo_v);
+                            $this->Producto_model->actualizar($new_id_v, $id_sucursal, [
+                                'imagen' => $nombre_archivo_v,
+                                'version' => time()
+                            ]);
+                        }
+                    }
+
                     if ($v['stock'] > 0) {
                         $this->Stock_model->ajustar_stock($new_id_v, $id_sucursal, 'Entrada', $v['stock'], $v['motivo'] ?: 'Ajuste Inicial');
                     }

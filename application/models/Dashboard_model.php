@@ -70,6 +70,7 @@ class Dashboard_model extends CI_Model {
             SELECT COALESCE(SUM(c.total), 0) AS total
             FROM compras c
             WHERE c.id_sucursal = ?
+              AND c.estado = 'completada'
               AND c.fecha_registro >= ?
               AND c.fecha_registro <= ?
         ";
@@ -127,6 +128,7 @@ class Dashboard_model extends CI_Model {
             SELECT DATE(c.fecha_registro) AS d, SUM(c.total) AS egresos
             FROM compras c
             WHERE c.id_sucursal = ?
+              AND c.estado = 'completada'
               AND c.fecha_registro >= ? AND c.fecha_registro <= ?
             GROUP BY DATE(c.fecha_registro)
         ";
@@ -201,6 +203,7 @@ class Dashboard_model extends CI_Model {
             LEFT JOIN productos p ON p.id = cd.id_producto
             LEFT JOIN categorias cat ON cat.id = p.id_categoria
             WHERE c.id_sucursal = ?
+              AND c.estado = 'completada'
               AND c.fecha_registro >= ?
               AND c.fecha_registro <= ?
             GROUP BY COALESCE(cat.nombre, NULLIF(TRIM(p.categoria), ''), 'Sin categoría')
@@ -261,6 +264,7 @@ class Dashboard_model extends CI_Model {
             SELECT DATE_FORMAT(c.fecha_registro, '%Y-%m') AS ym, SUM(c.total) AS t
             FROM compras c
             WHERE c.id_sucursal = ?
+              AND c.estado = 'completada'
               AND c.fecha_registro >= ? AND c.fecha_registro <= ?
             GROUP BY ym
         ";
@@ -319,6 +323,7 @@ class Dashboard_model extends CI_Model {
             SELECT c.id, c.fecha_registro, c.total, c.proveedor
             FROM compras c
             WHERE c.id_sucursal = ?
+              AND c.estado = 'completada'
               AND c.fecha_registro >= ? AND c.fecha_registro <= ?
             ORDER BY c.fecha_registro
         ", [(int) $id_sucursal, $inicio, $fin])->result();

@@ -167,14 +167,7 @@ class Ventas extends CI_Controller {
             SELECT vd.*, 
                    CONCAT(
                        p.nombre, 
-                       IF(vd.tipo_venta='promocion', ' (Promo)', ''), 
-                       IF(vd.talla != '' OR vd.color != '' OR vd.diseno != '', 
-                          CONCAT(' (', 
-                              COALESCE(vd.talla, ''), 
-                              IF(vd.color != '', CONCAT(' ', vd.color), ''), 
-                              IF(vd.diseno != '', CONCAT(' ', vd.diseno), ''), 
-                          ')'), 
-                       '')
+                       IF(vd.tipo_venta='promocion', ' (Promo)', '')
                    ) as nombre, 
                    p.codigo_barras
             FROM venta_detalles vd
