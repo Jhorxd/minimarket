@@ -26,7 +26,7 @@ foreach ($gastos as $g) {
 ?>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0"
+<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
      x-data="{
         items: <?= htmlspecialchars(json_encode($gastos_json), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
@@ -55,7 +55,7 @@ foreach ($gastos as $g) {
 
     <div class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
 
-        <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
+        <header class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
             <div>
                 <nav class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">Administración</nav>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tighter">Gastos operativos</h1>
@@ -187,7 +187,7 @@ foreach ($gastos as $g) {
                     </table>
                     <p class="px-6 py-8 text-center text-slate-400 text-sm" x-show="filteredItems.length === 0">No hay gastos registrados.</p>
                 </div>
-                <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500" x-show="filteredItems.length > perPage">
+                <div class="px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500" x-show="filteredItems.length > perPage">
                     <button type="button" @click="prevPage()" class="font-bold text-blue-600 disabled:opacity-30" :disabled="page <= 1">Anterior</button>
                     <span>Página <span x-text="page"></span> de <span x-text="totalPages"></span></span>
                     <button type="button" @click="nextPage()" class="font-bold text-blue-600 disabled:opacity-30" :disabled="page >= totalPages">Siguiente</button>

@@ -13,7 +13,7 @@ $iniMes = $hoy->format('Y-m-01');
 $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
 ?>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 pt-16 md:pt-0"
+<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
      x-data="{ 
         items: <?= htmlspecialchars(json_encode($ventas), ENT_QUOTES, 'UTF-8') ?>,
         search: '',
@@ -173,7 +173,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
     <div class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
 
         <!-- Header -->
-        <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
+        <header class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
             <div>
                 <nav class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">Módulo de Transacciones</nav>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tighter">Ventas Realizadas</h1>
@@ -227,7 +227,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
             </div>
 
             <!-- Botones de Acción -->
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 mt-2 lg:mt-0">
                 <button @click="resetFilters()" 
                     class="h-full px-5 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
                     <i class="fas fa-eraser text-xs"></i> Limpiar
@@ -327,8 +327,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                 </table>
             </div>
 
-            <!-- Footer y Paginación -->
-            <div class="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-6">
                 <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                     Registros: <span class="text-slate-800" x-text="pagedItems.length"></span> de <span class="text-slate-800" x-text="filteredItems.length"></span> ventas
                 </div>
@@ -339,7 +338,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                         <i class="fas fa-chevron-left text-xs"></i>
                     </button>
                     
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center justify-center gap-2">
                         <template x-for="p in totalPages" :key="p">
                             <button @click="page = p"
                                 :class="p === page ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-200 scale-110' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Login</title>
+<link rel="icon" type="image/png" href="<?= base_url('dist/img/aldemar_icono.png') ?>">
 
 <link rel="stylesheet" href="<?= base_url() ?>plugins/fontawesome-free/css/all.min.css">
 <script src="https://cdn.tailwindcss.com"></script>

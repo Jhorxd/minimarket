@@ -14,7 +14,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
 <?php $this->load->view('layouts/header', isset($titulo) ? ['titulo' => $titulo] : []); ?>
 <?php $this->load->view('layouts/sidebar'); ?>
 
-<div class="md:ml-64 min-h-screen bg-slate-50 transition-all duration-300">
+<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0">
     <div class="p-4 sm:p-6 lg:p-10 w-full">
 
         <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8 border-b border-slate-200 pb-6">
