@@ -4,10 +4,15 @@
 ?>
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="<?= base_url('dashboard') ?>" class="brand-link border-0 flex items-center px-4 py-4 transition-all duration-300">
-        <div class="bg-blue-600 p-2 rounded-lg mr-3 shadow-lg shadow-blue-500/30 flex items-center justify-center" style="width: 35px; height: 35px;">
-            <i class="fas fa-boxes text-white text-sm"></i>
-        </div>
-        <span class="brand-text font-bold tracking-tight text-white uppercase text-sm">SISTEMA DE GESTIÓN</span>
+    
+    <div class="mr-3 flex items-center justify-center">
+        <img src="<?= base_url('dist/img/aldemar_icono.png') ?>" style="width:35px; height:35px; object-fit:contain;">
+    </div>
+
+    <span class="brand-text font-bold tracking-tight text-white uppercase text-sm">
+        ALDEMAR STORE
+    </span>
+
     </a>
 
     <style>

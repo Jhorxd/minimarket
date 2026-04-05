@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sistema Inventario</title>
+    <title>Sistema de Gestión Logistico</title>
+    <link rel="icon" type="image/png" href="<?= base_url('dist/img/aldemar_icono.png') ?>">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="<?= base_url() ?>plugins/fontawesome-free/css/all.min.css">
