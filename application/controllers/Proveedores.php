@@ -65,18 +65,18 @@ class Proveedores extends CI_Controller {
         ];
 
         if (!empty($post['nro_documento'])) {
-            if ($this->proveedor_m->existe_documento($post['nro_documento'], $post['id'] ?? null)) {
+            if ($this->proveedor_m->existe_documento($post['nro_documento'], $post['id_proveedor'] ?? null)) {
                 $this->session->set_flashdata('msg_error', 'El documento ' . $post['nro_documento'] . ' ya se encuentra registrado para otro proveedor.');
                 redirect('proveedores/proveedor_index');
                 return;
             }
         }
 
-        if (empty($post['id'])) {
+        if (empty($post['id_proveedor'])) {
             $this->proveedor_m->insert($data);
             $this->session->set_flashdata('msg', 'Proveedor creado correctamente');
         } else {
-            $this->proveedor_m->update($post['id'], $data);
+            $this->proveedor_m->update($post['id_proveedor'], $data);
             $this->session->set_flashdata('msg', 'Proveedor actualizado correctamente');
         }
 

@@ -63,18 +63,18 @@ class Clientes extends CI_Controller {
     ];
 
         if (!empty($post['nro_documento'])) {
-            if ($this->cliente_m->existe_documento($post['nro_documento'], $post['id'] ?? null)) {
+            if ($this->cliente_m->existe_documento($post['nro_documento'], $post['id_cliente'] ?? null)) {
                 $this->session->set_flashdata('msg_error', 'El documento ' . $post['nro_documento'] . ' ya se encuentra registrado para otro cliente.');
                 redirect('clientes/cliente_index');
                 return;
             }
         }
 
-        if (empty($post['id'])) {
+        if (empty($post['id_cliente'])) {
         $this->cliente_m->insert($data);
         $this->session->set_flashdata('msg', 'Cliente creado correctamente');
     } else {
-        $this->cliente_m->update($post['id'], $data);
+        $this->cliente_m->update($post['id_cliente'], $data);
         $this->session->set_flashdata('msg', 'Cliente actualizado correctamente');
     }
 
