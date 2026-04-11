@@ -27,8 +27,11 @@ class Productos extends CI_Controller {
 
     // Vista del formulario de nuevo producto
     public function nuevo() {
+        $id_sucursal = $this->session->userdata('id_sucursal');
         $data['categorias'] = $this->Categoria_model->get_categorias();
         $data['almacenes']  = $this->Almacen_model->get_almacenes();
+        $data['next_barcode'] = $this->Producto_model->get_next_barcode_numeric($id_sucursal);
+        
         $this->load->view('layouts/header');
         $this->load->view('layouts/sidebar');
         $this->load->view('productos/nuevo', $data);

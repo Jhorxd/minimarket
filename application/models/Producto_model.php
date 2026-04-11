@@ -137,4 +137,15 @@ public function get_producto($id, $id_sucursal) {
         $this->db->group_end();
         return $this->db->update('productos', $data);
     }
+
+    /**
+     * Obtiene el siguiente código de barras numérico disponible
+     */
+    public function get_next_barcode_numeric($id_sucursal) {
+        $sql = "SELECT IFNULL(MAX(CAST(codigo_barras AS UNSIGNED)), 0) as max_barcode 
+                FROM productos 
+                WHERE id_sucursal = ? AND estado = 1";
+        $row = $this->db->query($sql, [$id_sucursal])->row();
+        return (int)$row->max_barcode + 1;
+    }
 }

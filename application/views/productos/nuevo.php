@@ -182,9 +182,9 @@ function imagePreview() {
         }
     }
 }
-function barcodeScanner() {
+function barcodeScanner(inicial = '') {
     return {
-        codigo: '',
+        codigo: inicial,
         startScanner() { alert("Iniciando escáner..."); }
     }
 }
@@ -226,7 +226,7 @@ function barcodeScanner() {
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Código de Barras -->
-                        <div class="flex flex-col gap-2" x-data="barcodeScanner()">
+                        <div class="flex flex-col gap-2" x-data="barcodeScanner('<?= $next_barcode ?>')">
                             <label class="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Código de Barras</label>
                             <div class="flex gap-2">
                                 <div class="relative flex-1">
