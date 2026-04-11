@@ -5,13 +5,30 @@
     $base_price = (float)$p->precio_venta;
     $base_barcode = $p->codigo_barras;
 
-    // Inicialización de atributos: Si no hay variantes, usamos los del producto mismo
-    $tallas_init = !empty($p->talla) ? $p->talla : '';
-    $colores_init = !empty($p->color) ? $p->color : '';
-    $disenos_init = !empty($p->diseno) ? $p->diseno : '';
-
     // Limpiar el nombre base (quitar lo que está entre paréntesis) para edición limpia
     $nombre_base = preg_replace('/\s*\(.*?\)\s*$/', '', $p->nombre);
+
+    // FILTRAR HERMANOS: Solo queremos trabajar con la sub-familia actual (mismo color y diseño)
+    // para evitar que en la tabla aparezcan otros diseños o colores que no corresponden.
+    $hermanos_filtrados = [];
+    if (!empty($hermanos)) {
+        foreach ($hermanos as $h) {
+            if ($h['color'] == $p->color && $h['diseno'] == $p->diseno) {
+                $hermanos_filtrados[] = $h;
+            }
+        }
+    }
+
+    // Inicialización de atributos basada solo en la sub-familia filtrada
+    $tallas_array = [];
+    if (!empty($p->talla)) $tallas_array[] = $p->talla;
+    foreach ($hermanos_filtrados as $hf) {
+        if (!empty($hf['talla'])) $tallas_array[] = $hf['talla'];
+    }
+
+    $tallas_init = implode(', ', array_unique($tallas_array));
+    $colores_init = $p->color ?: "";
+    $disenos_init = $p->diseno ?: "";
 ?>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/@ericblade/quagga2@latest/dist/quagga.min.js"></script>
@@ -94,7 +111,7 @@ function productoForm(iniciales) {
                 combinations.forEach(c => disenos.forEach(d => next.push({...c, diseno: d})));
                 combinations = next;
             }
-            this.variantes = combinations.map(c => {
+            this.variantes = combinations.map((c, i) => {
                 const attrs = [c.talla, c.color, c.diseno].filter(Boolean).join(' ');
                 const nombreFull = attrs ? `${this.nombreBase} (${attrs})` : this.nombreBase;
 
@@ -105,12 +122,27 @@ function productoForm(iniciales) {
                     (v.diseno || '') == (c.diseno || '')
                 );
 
-                // Prioridad 2: Buscar si existe un hermano (ya en DB) para esta combinación
-                const hermanoEnDB = iniciales.variantes_db.find(h => 
+                // Prioridad 2: Buscar si existe un hermano (ya en DB) para esta combinación EXACTA
+                let hermanoEnDB = iniciales.variantes_db.find(h => 
                     (h.talla || '') == (c.talla || '') && 
                     (h.color || '') == (c.color || '') && 
                     (h.diseno || '') == (c.diseno || '')
                 );
+
+                // Prioridad 3: HEURÍSTICA DE POSICIÓN/TALLA (Si se está renombrando un atributo único)
+                // Si no hay match exacto pero el número de variantes es el mismo, intentamos emparejar por índice o talla
+                if (!hermanoEnDB && combinations.length === iniciales.variantes_db.length) {
+                    // Intentamos por talla (Heurística fuerte para ropa)
+                    hermanoEnDB = iniciales.variantes_db.find((h, idx) => 
+                        (h.talla || '') == (c.talla || '') && 
+                        !combinations.slice(0, i).some(prevC => prevC.talla == h.talla && prevC.color == h.color && prevC.diseno == h.diseno) // No reclamado aún
+                    );
+                    
+                    // Si sigue sin match, intentamos simplemente por el mismo índice (Último recurso para renombres masivos)
+                    if (!hermanoEnDB) {
+                        hermanoEnDB = iniciales.variantes_db[i];
+                    }
+                }
 
                 if (existenteActual) {
                     existenteActual.nombre = nombreFull; 
@@ -125,7 +157,7 @@ function productoForm(iniciales) {
                     diseno: c.diseno || '',
                     precio: hermanoEnDB ? hermanoEnDB.precio : (isCurrentProduct(c) ? this.precioBase : (this.precioBase || 0)),
                     stock: hermanoEnDB ? hermanoEnDB.stock : (isCurrentProduct(c) ? this.stockActual : 0),
-                    barcode: hermanoEnDB ? hermanoEnDB.barcode : '',
+                    barcode: hermanoEnDB ? (hermanoEnDB.barcode || hermanoEnDB.codigo_barras) : '',
                     motivo: ''
                 };
             });
@@ -163,6 +195,30 @@ function productoForm(iniciales) {
         submitForm() {
             const form = document.getElementById('formProducto');
             if (!form.reportValidity()) return;
+
+            // Validación mandatoría de Color y Diseño
+            if (!this.inputColores.trim()) {
+                Swal.fire({
+                    title: '<span class="text-slate-800">Color Faltante</span>',
+                    html: '<p class="text-sm font-medium text-slate-500">Por favor, ingresa al menos un <b>COLOR</b> para el producto.<br><span class="text-xs text-slate-400">(Ej: Rojo, Azul, No aplica)</span></p>',
+                    icon: 'warning',
+                    confirmButtonText: 'ENTENDIDO',
+                    confirmButtonColor: '#10b981', // emerald-600 para edición
+                    customClass: { popup: 'rounded-[2rem]', confirmButton: 'rounded-2xl px-8 py-3 font-black text-xs tracking-widest' }
+                });
+                return;
+            }
+            if (!this.inputDisenos.trim()) {
+                Swal.fire({
+                    title: '<span class="text-slate-800">Diseño Faltante</span>',
+                    html: '<p class="text-sm font-medium text-slate-500">Por favor, ingresa al menos un <b>DISEÑO</b> para el producto.<br><span class="text-xs text-slate-400">(Ej: Logo, Estampado, Liso, No aplica)</span></p>',
+                    icon: 'warning',
+                    confirmButtonText: 'ENTENDIDO',
+                    confirmButtonColor: '#10b981', // emerald-600
+                    customClass: { popup: 'rounded-[2rem]', confirmButton: 'rounded-2xl px-8 py-3 font-black text-xs tracking-widest' }
+                });
+                return;
+            }
 
             const btn = document.querySelector('[x-on\\:click="submitForm()"]');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Actualizando...'; }
@@ -283,7 +339,7 @@ function seleccionarCategoria(id, nombre) {
             colores_init: <?= json_encode($colores_init ?? "") ?>,
             disenos_init: <?= json_encode($disenos_init ?? "") ?>,
 
-            variantes_db: <?= json_encode($hermanos ?? []) ?>,
+            variantes_db: <?= json_encode($hermanos_filtrados ?? []) ?>,
             variantes: []
         })'
         x-init="initData()"

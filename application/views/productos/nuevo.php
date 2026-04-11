@@ -107,6 +107,31 @@ function productoForm() {
         submitForm() {
             const form = document.getElementById('formProducto');
             if (!form.reportValidity()) return;
+
+            // Validación mandatoría de Color y Diseño
+            if (!this.inputColores.trim()) {
+                Swal.fire({
+                    title: '<span class="text-slate-800">Color Faltante</span>',
+                    html: '<p class="text-sm font-medium text-slate-500">Por favor, ingresa al menos un <b>COLOR</b> para el producto.<br><span class="text-xs text-slate-400">(Ej: Rojo, Azul, No aplica)</span></p>',
+                    icon: 'warning',
+                    confirmButtonText: 'ENTENDIDO',
+                    confirmButtonColor: '#3b82f6',
+                    customClass: { popup: 'rounded-[2rem]', confirmButton: 'rounded-2xl px-8 py-3 font-black text-xs tracking-widest' }
+                });
+                return;
+            }
+            if (!this.inputDisenos.trim()) {
+                Swal.fire({
+                    title: '<span class="text-slate-800">Diseño Faltante</span>',
+                    html: '<p class="text-sm font-medium text-slate-500">Por favor, ingresa al menos un <b>DISEÑO</b> para el producto.<br><span class="text-xs text-slate-400">(Ej: Logo, Estampado, Liso, No aplica)</span></p>',
+                    icon: 'warning',
+                    confirmButtonText: 'ENTENDIDO',
+                    confirmButtonColor: '#3b82f6',
+                    customClass: { popup: 'rounded-[2rem]', confirmButton: 'rounded-2xl px-8 py-3 font-black text-xs tracking-widest' }
+                });
+                return;
+            }
+
             const btn = document.querySelector('[x-on\\:click="submitForm()"]');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...'; }
 

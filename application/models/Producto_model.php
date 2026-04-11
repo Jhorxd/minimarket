@@ -101,8 +101,40 @@ public function get_producto($id, $id_sucursal) {
         $this->db->from('productos');
         $this->db->where('id_sucursal', $id_sucursal);
         $this->db->where('estado', 1);
-        $this->db->like('nombre', $nombre_base, 'after');
+        $this->db->group_start();
+        $this->db->where('nombre', $nombre_base);
+        $this->db->or_like('nombre', $nombre_base . ' (', 'after');
+        $this->db->group_end();
         $query = $this->db->get();
         return $query->result_array();
+    }
+    /**
+     * Busca un producto por sus atributos específicos para evitar duplicados
+     */
+    public function get_producto_por_atributos($id_sucursal, $talla, $color, $diseno, $nombre_base) {
+        $this->db->where('id_sucursal', $id_sucursal);
+        $this->db->where('talla', $talla);
+        $this->db->where('color', $color);
+        $this->db->where('diseno', $diseno);
+        $this->db->where('estado', 1);
+        
+        $this->db->group_start();
+        $this->db->where('nombre', $nombre_base);
+        $this->db->or_like('nombre', $nombre_base . ' (', 'after');
+        $this->db->group_end();
+        
+        return $this->db->get('productos')->row();
+    }
+
+    /**
+     * Actualiza atributos comunes de todos los productos que comparten un nombre base
+     */
+    public function actualizar_por_nombre_base($id_sucursal, $old_base_name, $data) {
+        $this->db->where('id_sucursal', $id_sucursal);
+        $this->db->group_start();
+        $this->db->where('nombre', $old_base_name);
+        $this->db->or_like('nombre', $old_base_name . ' (', 'after');
+        $this->db->group_end();
+        return $this->db->update('productos', $data);
     }
 }

@@ -168,42 +168,55 @@ public function actualizar($id) {
     $id_sucursal = $this->session->userdata('id_sucursal');
     $this->load->model('Stock_model');
     
+    // 0. Obtener estado previo del producto para sincronización
+    $p_inicial = $this->Producto_model->get_producto($id, $id_sucursal);
+    if (!$p_inicial) {
+        $this->session->set_flashdata('error', 'Producto no encontrado');
+        redirect('productos');
+    }
+    // Extraer nombre base original (quitando lo que esté entre paréntesis)
+    $old_base_name = preg_replace('/\s*\(.*?\)\s*$/', '', $p_inicial->nombre);
+
+    // 1. Procesar datos del formulario
     $id_categoria = $this->input->post('id_categoria');
     $categoria_nombre = $this->input->post('categoria');
-    
     if ($id_categoria && empty($categoria_nombre)) {
         $cat = $this->Categoria_model->get_categoria($id_categoria);
         if ($cat) $categoria_nombre = $cat->nombre;
     }
 
-    $talla_main  = $this->input->post('talla_producto');
-    $color_main  = $this->input->post('color_producto');
-    $diseno_main = $this->input->post('diseno_producto');
-    $nombre_main = $this->input->post('nombre');
+    $nombre_comercial = $this->input->post('nombre'); // Este es el nombre "Base" que quiere el usuario
+    $descripcion = $this->input->post('descripcion');
 
-    // --- CORRECCIÓN CRÍTICA: SI HAY VARIANTES, EL PRODUCTO BASE DEBE TOMAR SOLO SUS ATRIBUTOS, NO LA LISTA ---
+    // 2. Determinar atributos específicos para el producto principal (el que se está editando directamente)
+    $talla_main  = $p_inicial->talla;
+    $color_main  = $p_inicial->color;
+    $diseno_main = $p_inicial->diseno;
+    
+    // Si viene en el JSON de variantes, sincronizamos sus atributos internos
     $json_variantes = $this->input->post('json_variantes');
     if ($json_variantes) {
         $variantes_data = json_decode($json_variantes, true);
         if (is_array($variantes_data)) {
             foreach ($variantes_data as $vd) {
                 if (!empty($vd['id']) && $vd['id'] == $id) {
-                    $talla_main  = $vd['talla'] ?? '';
-                    $color_main  = $vd['color'] ?? '';
-                    $diseno_main = $vd['diseno'] ?? '';
-                    
-                    $attrs_vd = trim($talla_main . ' ' . $color_main . ' ' . $diseno_main);
-                    $nombre_main = !empty($attrs_vd) ? "$nombre_main ($attrs_vd)" : $nombre_main;
+                    $talla_main  = $vd['talla'] ?? $talla_main;
+                    $color_main  = $vd['color'] ?? $color_main;
+                    $diseno_main = $vd['diseno'] ?? $diseno_main;
                     break;
                 }
             }
         }
     }
 
-    $data = [
+    // Nombre completo del producto principal
+    $attrs_main = trim($talla_main . ' ' . $color_main . ' ' . $diseno_main);
+    $nombre_full_main = !empty($attrs_main) ? "$nombre_comercial ($attrs_main)" : $nombre_comercial;
+
+    $data_main = [
         'codigo_barras' => $this->input->post('codigo_barras'),
-        'nombre'        => $nombre_main,
-        'descripcion'   => $this->input->post('descripcion'),
+        'nombre'        => $nombre_full_main,
+        'descripcion'   => $descripcion,
         'categoria'     => $categoria_nombre,
         'id_categoria'  => $id_categoria ?: null,
         'id_almacen'    => $this->input->post('id_almacen') ?: null,
@@ -215,128 +228,174 @@ public function actualizar($id) {
         'stock_minimo'  => $this->input->post('stock_minimo')
     ];
 
+    // Manejo de Imagen
     if (!empty($_FILES['imagen']['name'])) {
         $path = './uploads/productos/';
         if (!is_dir($path)) { mkdir($path, 0777, true); }
-
         $extension = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
         $nombre_archivo = $id . "." . $extension; 
-
-        $config['upload_path']   = $path;
-        $config['file_name']     = $nombre_archivo;
-        $config['allowed_types'] = 'gif|jpg|png|jpeg|webp';
-        $config['overwrite']     = TRUE;
-        $config['max_size']      = '10240'; 
-
+        $config = ['upload_path' => $path, 'file_name' => $nombre_archivo, 'allowed_types' => 'gif|jpg|png|jpeg|webp', 'overwrite' => TRUE, 'max_size' => '10240'];
         $this->load->library('upload', $config);
-
         if ($this->upload->do_upload('imagen')) {
-            $uploadData = $this->upload->data();
-            $data['imagen'] = $uploadData['file_name'];
-            $data['version'] = time(); 
+            $data_main['imagen'] = $this->upload->data('file_name');
+            $data_main['version'] = time();
         }
     }
 
-    if ($this->Producto_model->actualizar($id, $id_sucursal, $data)) {
+    // --- SINCRONIZACIÓN MASIVA (HERMANOS) ---
+    // 1. Detectar cambios en atributos específicos (Talla, Color, Diseño) para propagación selectiva
+    $cambios_attr = [];
+    if ($talla_main  !== $p_inicial->talla)  $cambios_attr['talla']  = [$p_inicial->talla, $talla_main];
+    if ($color_main  !== $p_inicial->color)  $cambios_attr['color']  = [$p_inicial->color, $color_main];
+    if ($diseno_main !== $p_inicial->diseno) $cambios_attr['diseno'] = [$p_inicial->diseno, $diseno_main];
+
+    $hermanos = $this->Producto_model->get_hermanos($old_base_name, $id_sucursal);
+
+    // 2. Propagar cambios a los hermanos
+    foreach ($hermanos as $h) {
+        if ($h['id'] == $id) continue; // Saltamos el actual, se actualiza luego
         
-        // --- 1. PROCESAR AJUSTE DE STOCK (KARDEX) ---
-        $stock_ajuste = $this->input->post('stock_ajuste');
-        $stock_motivo = $this->input->post('stock_motivo');
+        $h_data = [
+            'descripcion'  => $descripcion,
+            'categoria'    => $categoria_nombre,
+            'id_categoria' => $id_categoria ?: null,
+            'stock_minimo' => $data_main['stock_minimo']
+        ];
 
-        if ($stock_ajuste !== null) {
-            $p_actual = $this->Producto_model->get_producto($id, $id_sucursal);
-            $dif = $stock_ajuste - $p_actual->stock;
-
-            if ($dif != 0) {
-                $tipo = ($dif > 0) ? 'Entrada' : 'Salida';
-                $this->Stock_model->ajustar_stock($id, $id_sucursal, $tipo, abs($dif), $stock_motivo ?: 'Ajuste Manual en Edición');
+        // Sincronizar atributos de variante si el hermano compartía el valor antiguo
+        $nombre_recalculado = false;
+        foreach ($cambios_attr as $campo => $vals) {
+            if ($h[$campo] === $vals[0]) {
+                $h_data[$campo] = $vals[1];
+                $nombre_recalculado = true;
             }
         }
 
-        // --- 2. PROCESAR VARIANTES EN JSON ---
-        $json_variantes = $this->input->post('json_variantes');
-        if ($json_variantes) {
-            $variantes = json_decode($json_variantes, true);
-            foreach ($variantes as $v) {
-                if (!empty($v['id'])) {
-                    // ACTUALIZAR VARIANTE EXISTENTE
-                    $attrs_upd = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
-                    $nombre_base_upd = $this->input->post('nombre');
-                    $nombre_full_upd = !empty($attrs_upd) ? "$nombre_base_upd ($attrs_upd)" : $nombre_base_upd;
+        // Si cambió el nombre base (comercial) o alguno de sus atributos internos, recalculamos el nombre full del hermano
+        if ($nombre_recalculado || ($nombre_comercial !== $old_base_name)) {
+            $h_t = $h_data['talla']  ?? $h['talla'];
+            $h_c = $h_data['color']  ?? $h['color'];
+            $h_d = $h_data['diseno'] ?? $h['diseno'];
+            $h_attrs = trim($h_t . ' ' . $h_c . ' ' . $h_d);
+            $h_data['nombre'] = !empty($h_attrs) ? "$nombre_comercial ($h_attrs)" : $nombre_comercial;
+        }
 
+        $this->Producto_model->actualizar($h['id'], $id_sucursal, $h_data);
+    }
+
+    // 3. Ejecutar actualización del producto principal
+    if ($this->Producto_model->actualizar($id, $id_sucursal, $data_main)) {
+        
+        // Ajuste de Stock principal
+        $stock_ajuste = $this->input->post('stock_ajuste');
+        if ($stock_ajuste !== null) {
+            $dif = $stock_ajuste - $p_inicial->stock;
+            if ($dif != 0) {
+                $this->Stock_model->ajustar_stock($id, $id_sucursal, ($dif > 0 ? 'Entrada' : 'Salida'), abs($dif), $this->input->post('stock_motivo') ?: 'Ajuste Manual en Edición');
+            }
+        }
+
+        // 4. Procesar variantes en JSON
+        if ($json_variantes) {
+            $variantes_json = json_decode($json_variantes, true);
+            if (is_array($variantes_json)) {
+                // Obtener todos los hermanos para reconciliación (incluyendo los recién actualizados por sincronización masiva)
+                $hermanos_db = $this->Producto_model->get_hermanos($nombre_comercial, $id_sucursal);
+                $ids_usados = [$id]; // El principal ya está usado
+
+                // FASE 1: Procesar los que tienen ID explícito
+                foreach ($variantes_json as &$v) {
+                    if ($v['id'] == $id) { $v['_procesado'] = true; continue; }
+                    if (!empty($v['id'])) {
+                        $v_attrs = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
+                        $v_data = [
+                            'nombre'       => !empty($v_attrs) ? "$nombre_comercial ($v_attrs)" : $nombre_comercial,
+                            'descripcion'  => $descripcion,
+                            'talla'        => $v['talla'] ?? '',
+                            'color'        => $v['color'] ?? '',
+                            'diseno'       => $v['diseno'] ?? '',
+                            'precio_venta' => $v['precio'],
+                            'stock_minimo' => $data_main['stock_minimo'],
+                            'id_categoria' => $data_main['id_categoria'],
+                            'categoria'    => $data_main['categoria']
+                        ];
+                        $this->Producto_model->actualizar($v['id'], $id_sucursal, $v_data);
+                        $ids_usados[] = $v['id'];
+                        $v['_procesado'] = true;
+                    }
+                }
+
+                // FASE 2: Procesar los que NO tienen ID (intentar búsqueda exacta o reconciliación)
+                foreach ($variantes_json as &$v) {
+                    if (!empty($v['_procesado'])) continue;
+
+                    $v_attrs = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
                     $v_data = [
-                        'nombre'       => $nombre_full_upd,
-                        'descripcion'  => $data['descripcion'],
+                        'nombre'       => !empty($v_attrs) ? "$nombre_comercial ($v_attrs)" : $nombre_comercial,
+                        'descripcion'  => $descripcion,
                         'talla'        => $v['talla'] ?? '',
                         'color'        => $v['color'] ?? '',
                         'diseno'       => $v['diseno'] ?? '',
                         'precio_venta' => $v['precio'],
-                        'stock_minimo' => $this->input->post('stock_minimo'),
-                        'id_categoria' => $data['id_categoria'],
-                        'categoria'    => $data['categoria']
+                        'stock_minimo' => $data_main['stock_minimo'],
+                        'id_categoria' => $data_main['id_categoria'],
+                        'categoria'    => $data_main['categoria']
                     ];
-                    $this->Producto_model->actualizar($v['id'], $id_sucursal, $v_data);
 
-                    // Procesar ajuste de stock para la variante si cambió
-                    $p_v_actual = $this->Producto_model->get_producto($v['id'], $id_sucursal);
-                    $dif_v = $v['stock'] - $p_v_actual->stock;
+                    // A. Intentar búsqueda exacta de atributos (por si ya existía pero el JSON no traía ID)
+                    $existente = $this->Producto_model->get_producto_por_atributos($id_sucursal, $v['talla']??'', $v['color']??'', $v['diseno']??'', $nombre_comercial);
                     
-                    if ($dif_v != 0) {
-                        $tipo_v = ($dif_v > 0) ? 'Entrada' : 'Salida';
-                        $this->Stock_model->ajustar_stock($v['id'], $id_sucursal, $tipo_v, abs($dif_v), $v['motivo'] ?: 'Ajuste de Variante');
-                    }
-                } else {
-                    // INSERTAR NUEVO PRODUCTO GENERADO DURANTE LA EDICIÓN
-                    $attrs_v = trim(($v['talla'] ?? '') . ' ' . ($v['color'] ?? '') . ' ' . ($v['diseno'] ?? ''));
-                    $nombre_base_v = $this->input->post('nombre');
-                    $nombre_full_v = !empty($attrs_v) ? "$nombre_base_v ($attrs_v)" : $nombre_base_v;
+                    if ($existente) {
+                        $this->Producto_model->actualizar($existente->id, $id_sucursal, $v_data);
+                        $ids_usados[] = $existente->id;
+                    } else {
+                        // B. RECONCILIACIÓN: Buscar un hermano "huérfano" que coincida en talla (Heurística de renombre)
+                        $reconciliado = null;
+                        foreach ($hermanos_db as $h) {
+                            if (!in_array($h['id'], $ids_usados) && $h['talla'] === ($v['talla'] ?? '')) {
+                                $reconciliado = $h;
+                                break;
+                            }
+                        }
 
-                    $data_v = [
-                        'id_sucursal'   => $id_sucursal,
-                        'nombre'        => $nombre_full_v,
-                        'descripcion'   => $data['descripcion'],
-                        'talla'         => $v['talla'] ?? '',
-                        'color'         => $v['color'] ?? '',
-                        'diseno'        => $v['diseno'] ?? '',
-                        'codigo_barras' => $v['barcode'] ?: ($data['codigo_barras'] . '-' . uniqid()),
-                        'precio_venta'  => $v['precio'] ?: $data['precio_venta'],
-                        'precio_compra' => $data['precio_compra'],
-                        'stock'         => 0,
-                        'id_categoria'  => $data['id_categoria'],
-                        'categoria'     => $data['categoria'],
-                        'id_almacen'    => $data['id_almacen'],
-                    ];
-                    $new_id_v = $this->Producto_model->insertar($data_v);
-                    
-                    // --- HERENCIA DE IMAGEN PARA LA NUEVA VARIANTE ---
-                    $p_base_final = $this->Producto_model->get_producto($id, $id_sucursal);
-                    if ($p_base_final && !empty($p_base_final->imagen)) {
-                        $path = './uploads/productos/';
-                        $img_base = $p_base_final->imagen;
-                        $ext_v = pathinfo($img_base, PATHINFO_EXTENSION);
-                        $nombre_archivo_v = $new_id_v . "." . $ext_v;
-                        
-                        if (file_exists($path . $img_base)) {
-                            copy($path . $img_base, $path . $nombre_archivo_v);
-                            $this->Producto_model->actualizar($new_id_v, $id_sucursal, [
-                                'imagen' => $nombre_archivo_v,
-                                'version' => time()
-                            ]);
+                        if ($reconciliado) {
+                            $this->Producto_model->actualizar($reconciliado['id'], $id_sucursal, $v_data);
+                            $ids_usados[] = $reconciliado['id'];
+                        } else {
+                            // C. INSERTAR NUEVO (Si no se encontró ni por atributos ni por reconciliación)
+                            $v_data['id_sucursal']   = $id_sucursal;
+                            $v_data['precio_compra'] = $data_main['precio_compra'];
+                            $v_data['stock']         = 0;
+                            $v_data['id_almacen']    = $data_main['id_almacen'];
+                            $v_data['codigo_barras'] = !empty($v['barcode']) ? $v['barcode'] : ($data_main['codigo_barras'] . '-' . uniqid());
+                            
+                            $target_id = $this->Producto_model->insertar($v_data);
+                            if ($target_id && !empty($data_main['imagen'])) {
+                                $this->Producto_model->actualizar($target_id, $id_sucursal, ['imagen' => $data_main['imagen'], 'version' => time()]);
+                            }
                         }
                     }
 
-                    if ($v['stock'] > 0) {
-                        $this->Stock_model->ajustar_stock($new_id_v, $id_sucursal, 'Entrada', $v['stock'], $v['motivo'] ?: 'Ajuste Inicial');
+                    // Ajuste de stock para la variante (sea nueva, reconciliada o encontrada por atributos)
+                    $actual_target_id = !empty($v['id']) ? $v['id'] : (!empty($existente->id) ? $existente->id : (!empty($reconciliado['id']) ? $reconciliado['id'] : ($target_id ?? null)));
+                    
+                    if ($actual_target_id) {
+                        $p_v = $this->Producto_model->get_producto($actual_target_id, $id_sucursal);
+                        if ($p_v) {
+                            $dif_v = ($v['stock'] ?? 0) - $p_v->stock;
+                            if ($dif_v != 0) {
+                                $this->Stock_model->ajustar_stock($actual_target_id, $id_sucursal, ($dif_v > 0 ? 'Entrada' : 'Salida'), abs($dif_v), (!empty($v['motivo']) ? $v['motivo'] : 'Ajuste de Variante en Edición'));
+                            }
+                        }
                     }
                 }
             }
         }
-
-        $this->session->set_flashdata('success', 'Producto y stock sincronizados correctamente');
+        $this->session->set_flashdata('success', 'Producto y variantes sincronizados correctamente');
     } else {
         $this->session->set_flashdata('error', 'Error al guardar cambios');
     }
-
     redirect('productos');
 }
+
 }
