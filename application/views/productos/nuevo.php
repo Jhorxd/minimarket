@@ -4,8 +4,8 @@
 <script>
 function productoForm() {
     return {
-        precioBase: '',
-        inputTallas: '',
+        precioBase: '30',
+        inputTallas: 'S, M, L',
         inputColores: '',
         inputDisenos: '',
         stockInicial: 0,
@@ -23,6 +23,8 @@ function productoForm() {
             this.$watch('precioBase', (val) => {
                 this.variantes.forEach(v => v.precio = val);
             });
+            // Generar variantes iniciales por defecto (S, M, L)
+            this.generarVariantes();
         },
         toggleTalla(t) {
             let tallas = this.inputTallas.split(',').map(s => s.trim()).filter(s => s !== '');
@@ -349,7 +351,7 @@ function barcodeScanner(inicial = '') {
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio Compra</label>
                                 <div class="relative">
                                     <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">S/</span>
-                                    <input type="number" name="precio_compra" step="0.01" placeholder="0.00"
+                                    <input type="number" name="precio_compra" step="0.01" placeholder="0.00" value="15"
                                         class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 transition-all font-bold text-slate-700 text-sm">
                                 </div>
                             </div>
