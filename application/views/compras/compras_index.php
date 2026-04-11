@@ -13,9 +13,10 @@ $iniMes = $hoy->format('Y-m-01');
 $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
 ?>
 
-<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
-     x-data="{ 
-        items: <?= htmlspecialchars(json_encode($compras), ENT_QUOTES, 'UTF-8') ?>,
+<script>
+function gestionCompras() {
+    return {
+        items: <?= json_encode($compras) ?>,
         search: '',
         page: 1,
         perPage: 10,
@@ -43,6 +44,11 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
             this.search = '';
             this.page = 1;
         },
+        get totalGeneral() {
+            return this.filteredItems
+                .filter(i => i.estado === 'completada')
+                .reduce((sum, item) => sum + parseFloat(item.total), 0);
+        },
         exportExcel() {
             const data = this.filteredItems.map(i => ({
                 'ID': i.id,
@@ -59,16 +65,12 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
         exportPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4');
-            
-            // Título Branded
             doc.setFontSize(22);
             doc.setTextColor(30, 41, 59);
             doc.text('REPORTE DE COMPRAS E INVENTARIO', 14, 20);
-            
             doc.setFontSize(10);
             doc.setTextColor(100);
             doc.text('Generado el: ' + new Date().toLocaleString(), 14, 28);
-
             const tableData = this.filteredItems.map(i => [
                 '#' + i.id.toString().padStart(6, '0'),
                 i.fecha_registro,
@@ -76,20 +78,13 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                 i.estado.toUpperCase(),
                 'S/ ' + parseFloat(i.total).toFixed(2)
             ]);
-
             tableData.push(['', '', 'TOTAL ACUMULADO:', '', 'S/ ' + this.totalGeneral.toFixed(2)]);
-
             doc.autoTable({
                 startY: 35,
                 head: [['ID', 'Fecha de Operación', 'Origen / Proveedor', 'Estado', 'Monto']],
                 body: tableData,
                 theme: 'striped',
-                headStyles: { 
-                    fillColor: [30, 41, 59], 
-                    textColor: 255,
-                    fontSize: 10,
-                    fontStyle: 'bold'
-                },
+                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 10, fontStyle: 'bold' },
                 didParseCell: function (data) {
                     if (data.row.index === tableData.length - 1) {
                         data.cell.styles.fontStyle = 'bold';
@@ -99,13 +94,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                 styles: { fontSize: 9, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
-
             doc.save('Reporte_Compras_' + new Date().getTime() + '.pdf');
-        },
-        get totalGeneral() {
-            return this.filteredItems
-                .filter(i => i.estado === 'completada')
-                .reduce((sum, item) => sum + parseFloat(item.total), 0);
         },
         anularCompra(id) {
             Swal.fire({
@@ -141,7 +130,12 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                 }
             });
         }
-     }">
+    }
+}
+</script>
+
+<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
+     x-data="gestionCompras()">
 
     <div class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
         
@@ -188,9 +182,8 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
             </div>
         </form>
 
-        <!-- Barra de Herramientas (Búsqueda + Exportación) -->
+        <!-- Barra de Herramientas -->
         <div class="flex flex-col lg:flex-row items-stretch gap-3 mb-6">
-            <!-- Buscador -->
             <div class="flex-grow relative group">
                 <div class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors">
                     <i class="fas fa-search text-base"></i>
@@ -198,21 +191,10 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                 <input type="text" x-model="search" @input="resetPage()" placeholder="Buscar por #Compra, Proveedor o Usuario..."
                     class="w-full pl-14 pr-8 py-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 outline-none transition-all font-bold text-slate-700">
             </div>
-
-            <!-- Botones de Acción -->
             <div class="flex flex-wrap items-center gap-2 mt-2 lg:mt-0">
-                <button @click="resetFilters()" 
-                    class="h-full px-5 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-                    <i class="fas fa-eraser text-xs"></i> Limpiar
-                </button>
-                <button @click="exportExcel()"
-                    class="h-full px-5 py-3.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-                    <i class="fas fa-file-excel text-xs"></i> Excel
-                </button>
-                <button @click="exportPDF()"
-                    class="h-full px-5 py-3.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-rose-600 hover:text-white transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-                    <i class="fas fa-file-pdf text-xs"></i> PDF
-                </button>
+                <button @click="resetFilters()" class="h-full px-5 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"><i class="fas fa-eraser text-xs"></i> Limpiar</button>
+                <button @click="exportExcel()" class="h-full px-5 py-3.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"><i class="fas fa-file-excel text-xs"></i> Excel</button>
+                <button @click="exportPDF()" class="h-full px-5 py-3.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-rose-600 hover:text-white transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"><i class="fas fa-file-pdf text-xs"></i> PDF</button>
             </div>
         </div>
 
@@ -223,7 +205,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
             </div>
         <?php endif; ?>
 
-        <!-- Listado de Compras -->
+        <!-- Listado -->
         <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -246,8 +228,12 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                                             <i class="fas fa-file-invoice text-slate-300 group-hover:text-white transition-colors text-sm"></i>
                                         </div>
                                         <div>
-                                            <p class="font-black text-slate-800 text-sm tracking-tight" :class="c.estado === 'anulada' ? 'line-through text-red-500' : ''" x-text="'#' + c.id.toString().padStart(6, '0')"></p>
-                                            <span class="text-[9px] font-black uppercase tracking-widest mt-0.5 italic" :class="c.estado === 'anulada' ? 'text-rose-400' : 'text-slate-400'" x-text="c.estado"></span>
+                                            <p class="font-black text-slate-800 text-sm tracking-tight" :class="c.estado === 'anulada' ? 'line-through text-red-500 opacity-50' : ''" x-text="'#' + c.id.toString().padStart(6, '0')"></p>
+                                            <div class="mt-1">
+                                                <span x-show="c.estado === 'borrador'" class="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[8px] font-black uppercase tracking-widest">Borrador</span>
+                                                <span x-show="c.estado === 'completada'" class="px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded text-[8px] font-black uppercase tracking-widest">Completada</span>
+                                                <span x-show="c.estado === 'anulada'" class="px-2 py-0.5 bg-rose-100 text-rose-600 rounded text-[8px] font-black uppercase tracking-widest">Anulada</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -258,9 +244,7 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                                 <td class="px-6 py-5">
                                     <div class="flex items-center gap-2">
                                         <div class="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                        <span class="text-xs font-black text-slate-800 uppercase max-w-[180px] truncate" 
-                                              :title="c.proveedor_razon || c.proveedor"
-                                              x-text="c.proveedor_razon || c.proveedor || 'Sin detallar'"></span>
+                                        <span class="text-xs font-black text-slate-800 uppercase max-w-[180px] truncate" :title="c.proveedor_razon || c.proveedor" x-text="c.proveedor_razon || c.proveedor || 'Sin detallar'"></span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-5 text-right">
@@ -268,36 +252,27 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                                     <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Importe Total</span>
                                 </td>
                                 <td class="px-6 py-5 text-center">
-                                    <span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200"
-                                          x-text="c.usuario">
-                                    </span>
+                                    <span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200" x-text="c.usuario"></span>
                                 </td>
                                 <td class="px-8 py-5 text-right font-sans">
                                     <div class="flex items-center justify-end gap-2">
-                                        <a :href="'<?= base_url('compras/ver_compras/') ?>' + c.id"
-                                           class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.1em] hover:bg-blue-700 transition-all shadow-md active:scale-95">
-                                            <i class="fas fa-eye text-[10px] text-blue-400"></i>
-                                            Ver
-                                        </a>
-                                        <a :href="'<?= base_url('compras/ticket_pdf/') ?>' + c.id" target="_blank"
-                                           class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all transform active:scale-95">
-                                            <i class="fas fa-file-pdf"></i> PDF
-                                        </a>
-                                        <button x-show="c.estado === 'completada'" @click="anularCompra(c.id)" 
-                                                class="inline-flex items-center gap-2 px-3 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all transform active:scale-95">
-                                            <i class="fas fa-times"></i> Anular
-                                        </button>
+                                        <a :href="'<?= base_url('compras/ver_compras/') ?>' + c.id" class="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-all shadow-sm" title="Ver Detalle"><i class="fas fa-eye text-xs"></i></a>
+                                        <div x-show="c.estado === 'borrador'" class="flex gap-2">
+                                            <a :href="'<?= base_url('compras/editar/') ?>' + c.id" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Editar Borrador"><i class="fas fa-edit text-xs"></i></a>
+                                            <a :href="'<?= base_url('compras/ejecutar/') ?>' + c.id" onclick="return confirm('¿Deseas ejecutar esta compra e ingresar el stock ahora?')" class="w-8 h-8 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Ejecutar y Cargar Stock"><i class="fas fa-play text-[10px] ml-0.5"></i></a>
+                                        </div>
+                                        <div x-show="c.estado === 'completada'" class="flex gap-2">
+                                            <a :href="'<?= base_url('compras/ticket_pdf/') ?>' + c.id" target="_blank" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm" title="Imprimir Ticket"><i class="fas fa-file-pdf text-xs"></i></a>
+                                            <button @click="anularCompra(c.id)" class="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all shadow-sm" title="Anular"><i class="fas fa-times text-xs"></i></button>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
-                    <!-- Fila de Totales -->
                     <tfoot class="border-t-2 border-slate-100">
                         <tr class="bg-slate-50/50">
-                            <td colspan="3" class="px-8 py-6 text-right">
-                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Inversión Total Acumulada:</span>
-                            </td>
+                            <td colspan="3" class="px-8 py-6 text-right"><span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Inversión Total Acumulada:</span></td>
                             <td class="px-6 py-6 text-right">
                                 <div class="text-base font-black text-emerald-600">S/ <span x-text="totalGeneral.toFixed(2)"></span></div>
                                 <div class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">(Solo Completadas)</div>
@@ -307,43 +282,23 @@ $qMes = $preset($iniMes, $hoy->format('Y-m-d'));
                     </tfoot>
                 </table>
             </div>
-
             <div class="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-6">
-                <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                    Registros: <span class="text-slate-800" x-text="pagedItems.length"></span> de <span class="text-slate-800" x-text="filteredItems.length"></span> compras
-                </div>
-                
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Registros: <span class="text-slate-800" x-text="pagedItems.length"></span> de <span class="text-slate-800" x-text="filteredItems.length"></span> compras</div>
                 <div class="flex items-center gap-2" x-show="totalPages > 1">
-                    <button @click="prevPage()" :disabled="page === 1"
-                        class="w-12 h-12 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all shadow-sm">
-                        <i class="fas fa-chevron-left text-xs"></i>
-                    </button>
-                    
+                    <button @click="prevPage()" :disabled="page === 1" class="w-12 h-12 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all shadow-sm"><i class="fas fa-chevron-left text-xs"></i></button>
                     <div class="flex flex-wrap items-center justify-center gap-2">
                         <template x-for="p in totalPages" :key="p">
-                            <button @click="page = p"
-                                x-show="Math.abs(p - page) <= 2 || p === 1 || p === totalPages"
-                                :class="p === page ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-200 scale-110' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
-                                class="w-12 h-12 rounded-2xl border font-black text-xs transition-all flex items-center justify-center"
-                                x-text="p">
-                            </button>
+                            <button @click="page = p" x-show="Math.abs(p - page) <= 2 || p === 1 || p === totalPages" :class="p === page ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-200 scale-110' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-12 h-12 rounded-2xl border font-black text-xs transition-all flex items-center justify-center" x-text="p"></button>
                         </template>
                     </div>
-
-                    <button @click="nextPage()" :disabled="page === totalPages"
-                        class="w-12 h-12 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all shadow-sm">
-                        <i class="fas fa-chevron-right text-xs"></i>
-                    </button>
+                    <button @click="nextPage()" :disabled="page === totalPages" class="w-12 h-12 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all shadow-sm"><i class="fas fa-chevron-right text-xs"></i></button>
                 </div>
             </div>
         </div>
 
-        <!-- Empty State -->
         <template x-if="filteredItems.length === 0">
             <div class="py-24 text-center">
-                <div class="w-24 h-24 bg-slate-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
-                    <i class="fas fa-file-invoice text-slate-300 text-4xl opacity-30"></i>
-                </div>
+                <div class="w-24 h-24 bg-slate-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner"><i class="fas fa-file-invoice text-slate-300 text-4xl opacity-30"></i></div>
                 <h3 class="text-slate-800 font-black uppercase tracking-widest text-xs">Sin coincidencias</h3>
                 <p class="text-slate-400 text-xs mt-2 font-medium italic">No hay facturas de compra que coincidan con la búsqueda.</p>
             </div>

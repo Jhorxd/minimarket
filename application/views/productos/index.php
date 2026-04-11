@@ -1,9 +1,10 @@
 <!-- Librería reactiva Alpine.js -->
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
-     x-data="{ 
-        items: <?= htmlspecialchars(json_encode($productos), ENT_QUOTES, 'UTF-8') ?>,
+<script>
+function catalogoProductos() {
+    return {
+        items: <?= json_encode($productos) ?>,
         search: '',
         page: 1,
         perPage: 10,
@@ -47,16 +48,12 @@
         exportPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4');
-            
-            // Título Branded
             doc.setFontSize(22);
             doc.setTextColor(30, 41, 59);
             doc.text('REPORTE DE PRODUCTOS', 14, 20);
-            
             doc.setFontSize(10);
             doc.setTextColor(100);
             doc.text('Generado el: ' + new Date().toLocaleString(), 14, 28);
-
             const tableData = this.filteredItems.map(i => [
                 i.codigo_barras,
                 i.nombre + (i.variantes_detalle ? '\n(' + i.variantes_detalle + ')' : ''),
@@ -64,14 +61,13 @@
                 'S/ ' + parseFloat(i.precio_venta).toFixed(2),
                 i.stock
             ]);
-
             doc.autoTable({
                 startY: 35,
                 head: [['Código', 'Producto', 'Categoría', 'Precio Venta', 'Stock']],
                 body: tableData,
                 theme: 'striped',
                 headStyles: { 
-                    fillColor: [59, 130, 246], // Blue-500 (#3b82f6)
+                    fillColor: [59, 130, 246], 
                     textColor: 255,
                     fontSize: 10,
                     fontStyle: 'bold'
@@ -79,10 +75,60 @@
                 styles: { fontSize: 9, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
-
             doc.save('Reporte_Productos_' + new Date().getTime() + '.pdf');
+        },
+        async confirmarEliminacion(p) {
+            try {
+                const response = await fetch('<?= base_url("productos/verificar_historial/") ?>' + p.id);
+                const data = await response.json();
+                
+                let warningHtml = '<p class="text-sm text-slate-500 font-medium mt-2">¿Estás seguro de que deseas eliminar este producto?</p>';
+                
+                if (data.tiene_historial) {
+                    warningHtml += `
+                        <div class="mt-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-left italic">
+                            <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 flex items-center">
+                                <i class="fas fa-exclamation-triangle mr-2"></i> Advertencia de Kardex
+                            </p>
+                            <p class="text-[11px] text-rose-500 font-bold leading-relaxed">
+                                Este producto tiene <b>${data.movimientos} movimientos</b> en el historial (Kardex). Al eliminarlo, estos registros dejarán de ser visibles en los reportes de inventario.
+                            </p>
+                        </div>
+                    `;
+                }
+
+                const result = await Swal.fire({
+                    title: '<span class="text-slate-800 font-black tracking-tight">Eliminar Producto</span>',
+                    html: warningHtml,
+                    icon: data.tiene_historial ? 'warning' : 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'SÍ, ELIMINAR',
+                    cancelButtonText: 'CANCELAR',
+                    confirmButtonColor: '#e11d48',
+                    cancelButtonColor: '#94a3b8',
+                    customClass: {
+                        popup: 'rounded-[2rem] border-none shadow-2xl',
+                        confirmButton: 'rounded-2xl px-6 py-3 font-black text-[10px] tracking-widest uppercase',
+                        cancelButton: 'rounded-2xl px-6 py-3 font-black text-[10px] tracking-widest uppercase'
+                    }
+                });
+
+                if (result.isConfirmed) {
+                    window.location.href = '<?= base_url("productos/eliminar/") ?>' + p.id;
+                }
+            } catch (error) {
+                console.error('Error al verificar historial:', error);
+                if (confirm('¿Eliminar producto?')) {
+                    window.location.href = '<?= base_url("productos/eliminar/") ?>' + p.id;
+                }
+            }
         }
-     }">
+    }
+}
+</script>
+
+<div class="lg:ml-[250px] min-h-screen bg-slate-50 transition-all duration-300 pt-16 lg:pt-0"
+     x-data="catalogoProductos()">
 
     <div class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
         
@@ -159,7 +205,6 @@
                                             <div class="flex flex-wrap items-center gap-2 mt-1">
                                                 <p class="text-[10px] text-slate-400 font-black font-mono tracking-widest uppercase" x-text="p.codigo_barras"></p>
                                                 
-
                                                 <!-- Detalle de Atributos Concatenados -->
                                                 <div class="flex items-center gap-2 text-[9px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100" 
                                                      x-show="p.variantes_detalle">
@@ -195,8 +240,8 @@
                                            class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl transition-all shadow-sm group-hover:shadow-md border border-transparent hover:border-slate-100" title="Editar">
                                             <i class="fas fa-edit text-sm"></i>
                                         </a>
-                                        <a :href="'<?= base_url('productos/eliminar/') ?>' + p.id" 
-                                           onclick="return confirm('¿Eliminar producto?')" 
+                                        <a href="javascript:void(0)" 
+                                           @click.prevent="confirmarEliminacion(p)" 
                                            class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm group-hover:shadow-md border border-transparent hover:border-slate-100" title="Eliminar">
                                             <i class="fas fa-trash-alt text-sm"></i>
                                         </a>

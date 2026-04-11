@@ -121,4 +121,11 @@ public function get_kardex_producto($id_producto, $id_sucursal)
 
     return $query->result();
 }
+
+    public function contar_movimientos_kardex($id_producto, $id_sucursal)
+    {
+        $this->db->where('id_producto', $id_producto);
+        $this->db->where('id_sucursal', $id_sucursal);
+        return $this->db->count_all_results('kardex');
+    }
 }

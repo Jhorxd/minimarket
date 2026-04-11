@@ -12,7 +12,7 @@
                     Gestión de Compras
                 </nav>
                 <h1 class="text-3xl font-black text-slate-800">
-                    Nueva Compra
+                    <?= isset($compra) ? 'Editar Borrador' : 'Nueva Compra' ?>
                 </h1>
             </div>
         </header>
@@ -20,6 +20,11 @@
         <form action="<?= base_url('compras/guardar'); ?>" method="post" id="form-compra" class="space-y-6">
 
             <!-- PROVEEDOR -->
+            <?php if (isset($compra)): ?>
+                <input type="hidden" name="id_compra" value="<?= $compra->id ?>">
+            <?php endif; ?>
+            <input type="hidden" name="accion" id="input-accion" value="ejecutar">
+
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">
                     Datos del proveedor
@@ -115,15 +120,17 @@
                 </div>
             </div>
 
-            <!-- Botones -->
-            <div class="flex justify-end gap-3">
-                <a href="<?= base_url('compras/compra_index'); ?>"
-                   class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50">
-                    Cancelar
+                <a href="<?= base_url('compras/compras_index'); ?>"
+                   class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-bold hover:bg-slate-50 transition-all">
+                    <i class="fas fa-arrow-left mr-2"></i> Volver
                 </a>
-                <button type="submit"
-                        class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md shadow-blue-100">
-                    Guardar Compra
+                <button type="submit" @click="document.getElementById('input-accion').value='borrador'"
+                        class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold shadow-lg shadow-slate-200 transition-all active:scale-95">
+                    <i class="fas fa-save mr-2 text-slate-400"></i> Guardar Borrador
+                </button>
+                <button type="submit" @click="document.getElementById('input-accion').value='ejecutar'"
+                        class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95">
+                    <i class="fas fa-check-double mr-2"></i> Ejecutar e Ingresar Stock
                 </button>
             </div>
 
@@ -191,6 +198,10 @@ document.addEventListener('alpine:init', () => {
 
         init() {
             this.fetchProv(); // cargar iniciales
+            <?php if (isset($compra)): ?>
+                this.idProveedor = '<?= $compra->id_proveedor ?>';
+                this.searchProv = '<?= htmlspecialchars($compra->proveedor ?: $compra->razon_social ?: '') ?>';
+            <?php endif; ?>
         },
         
         onInputProv() {
@@ -241,6 +252,17 @@ document.addEventListener('alpine:init', () => {
     const listaResultados = document.getElementById('lista-resultados');
     const tbodyItems     = document.getElementById('tbody-items');
     const totalCompraEl  = document.getElementById('total-compra');
+
+    // Cargar items si estamos en edición
+    const itemsIniciales = <?= isset($detalles) ? json_encode($detalles) : '[]' ?>;
+    itemsIniciales.forEach(it => {
+        agregarItem({
+            id: it.id_producto,
+            nombre: it.nombre,
+            codigo_barras: it.codigo_barras,
+            precio_compra: it.precio_compra
+        }, it.cantidad);
+    });
 
     let timeout = null;
 
@@ -297,25 +319,16 @@ document.addEventListener('alpine:init', () => {
         listaResultados.classList.remove('hidden');
     }
 
-    function agregarItem(p) {
+    function agregarItem(p, cantidadPredeterminada = 1) {
         // Verificar si el producto ya existe en la lista
         const filasActuales = tbodyItems.querySelectorAll('tr');
         for (let tr of filasActuales) {
             const idInput = tr.querySelector('input[name="id_producto[]"]');
             if (idInput && idInput.value == p.id) {
-                // Existe, incrementar cantidad en +1
+                // Existe, incrementar cantidad
                 const cantInput = tr.querySelector('.cantidad-input');
                 let cant = parseFloat(cantInput.value) || 0;
-                cantInput.value = cant + 1;
-                
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'info',
-                    title: 'Producto ya en lista. Cantidad incrementada (+1).',
-                    showConfirmButton: false,
-                    timer: 2500
-                });
+                cantInput.value = cant + cantidadPredeterminada;
                 
                 recalcular();
                 return;
@@ -324,6 +337,7 @@ document.addEventListener('alpine:init', () => {
 
         const tr = document.createElement('tr');
         const precio = parseFloat(p.precio_compra || p.precio_venta || 0).toFixed(2);
+        const subtotal = (parseFloat(precio) * cantidadPredeterminada).toFixed(2);
 
         tr.innerHTML = `
             <td class="px-4 py-2">
@@ -332,15 +346,16 @@ document.addEventListener('alpine:init', () => {
                 <div class="text-[10px] text-slate-400">${p.codigo_barras || ''}</div>
             </td>
             <td class="px-4 py-2">
-                <input type="number" name="cantidad[]" value="1" step="0.01" min="0.01"
-                       class="w-24 px-2 py-1 rounded-lg border border-slate-200 text-sm cantidad-input">
+                <input type="number" name="cantidad[]" value="${Math.round(cantidadPredeterminada)}" step="1" min="1"
+                       class="w-24 px-2 py-1 rounded-lg border border-slate-200 text-sm cantidad-input"
+                       onkeypress="return event.charCode >= 48 && event.charCode <= 57">
             </td>
             <td class="px-4 py-2">
                 <input type="number" name="precio_compra[]" value="${precio}" step="0.01" min="0"
                        class="w-24 px-2 py-1 rounded-lg border border-slate-200 text-sm precio-input">
             </td>
             <td class="px-4 py-2 text-right">
-                <span class="text-sm text-slate-700 subtotal-item">S/ ${precio}</span>
+                <span class="text-sm text-slate-700 subtotal-item">S/ ${subtotal}</span>
             </td>
             <td class="px-4 py-2 text-right">
                 <button type="button" class="text-slate-400 hover:text-red-600 text-xs btn-quitar">

@@ -401,4 +401,14 @@ public function actualizar($id) {
     redirect('productos');
 }
 
+    public function verificar_historial($id) {
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        $this->load->model('Stock_model');
+        $movimientos = $this->Stock_model->contar_movimientos_kardex($id, $id_sucursal);
+        
+        echo json_encode([
+            'tiene_historial' => ($movimientos > 0),
+            'movimientos'    => $movimientos
+        ]);
+    }
 }

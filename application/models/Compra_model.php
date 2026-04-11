@@ -76,89 +76,150 @@ class Compra_model extends CI_Model {
         return [$compra, $detalles];
     }
 
-    /**
-     * Registrar compra:
-     * - Inserta en compras y compra_detalle
-     * - Actualiza productos.stock (Entrada)
-     * - Registra movimiento en kardex (Entrada / Compra)
-     *
-     * $items = [
-     *   ['id_producto' => 1, 'cantidad' => 10.5, 'precio_compra' => 2.50],
-     *   ...
-     * ]
-     */
-    public function registrar_compra($id_sucursal, $id_usuario, $id_proveedor, $proveedor_texto, $items)
+    public function registrar_compra($id_sucursal, $id_usuario, $id_proveedor, $proveedor_texto, $items, $estado = 'completada')
     {
         $this->db->trans_start();
 
-        // Total de la compra
         $total = 0;
         foreach ($items as $it) {
             $total += $it['cantidad'] * $it['precio_compra'];
         }
 
-        // 1) Cabecera
-        $this->db->insert('compras', [
+        $id_compra = $this->db->insert('compras', [
             'id_sucursal'    => $id_sucursal,
             'id_usuario'     => $id_usuario,
             'id_proveedor'   => $id_proveedor ?: null,
             'proveedor'      => $proveedor_texto,
             'total'          => $total,
+            'estado'         => $estado,
             'fecha_registro' => date('Y-m-d H:i:s'),
-        ]);
+        ]) ? $this->db->insert_id() : false;
 
-        $id_compra = $this->db->insert_id();
+        if (!$id_compra) {
+            $this->db->trans_rollback();
+            return false;
+        }
 
-        // 2) Detalle + stock + kardex
         foreach ($items as $it) {
-            $id_producto   = (int)   $it['id_producto'];
             $cantidad      = (float) $it['cantidad'];
             $precio_compra = (float) $it['precio_compra'];
-            $subtotal      = $cantidad * $precio_compra;
-
-            // Detalle
+            
             $this->db->insert('compra_detalle', [
                 'id_compra'     => $id_compra,
-                'id_producto'   => $id_producto,
+                'id_producto'   => (int)$it['id_producto'],
                 'cantidad'      => $cantidad,
                 'precio_compra' => $precio_compra,
-                'subtotal'      => $subtotal,
+                'subtotal'      => $cantidad * $precio_compra,
                 'talla'         => $it['talla'] ?? null,
                 'color'         => $it['color'] ?? null,
                 'diseno'        => $it['diseno'] ?? null,
             ]);
 
-            // Actualizar stock (Entrada)
-            $this->db->query("
-                UPDATE productos
-                SET stock = stock + ?
-                WHERE id = ? AND id_sucursal = ?
-            ", [$cantidad, $id_producto, $id_sucursal]);
-
-            // Stock resultante
-            $producto = $this->db->get_where('productos', [
-                'id'          => $id_producto,
-                'id_sucursal' => $id_sucursal
-            ])->row();
-
-            // Kardex
-          $this->db->insert('kardex', [
-                'id_sucursal'      => $id_sucursal,
-                'id_producto'      => $id_producto,
-                'tipo_movimiento'  => 'Entrada',
-                'motivo'           => 'Compra',
-                'doc_tipo'         => 'Compra',
-                'doc_id'           => $id_compra,
-                'cantidad'         => $cantidad,
-                'stock_resultante' => $producto ? $producto->stock : 0,
-                'fecha'            => date('Y-m-d H:i:s'),
-            ]);
-
+            // Solo actualizar stock si NO es borrador
+            if ($estado === 'completada') {
+                $this->_procesar_stock_item($id_compra, $id_sucursal, (int)$it['id_producto'], $cantidad);
+            }
         }
 
         $this->db->trans_complete();
-
         return $this->db->trans_status() ? $id_compra : false;
+    }
+
+    /**
+     * Actualiza un borrador existente reemplazando sus items
+     */
+    public function actualizar_borrador($id_compra, $id_proveedor, $proveedor_texto, $items, $estado = 'borrador')
+    {
+        $this->db->trans_start();
+
+        $total = 0;
+        foreach ($items as $it) { $total += $it['cantidad'] * $it['precio_compra']; }
+
+        // 1) Actualizar cabecera
+        $this->db->where('id', $id_compra);
+        $this->db->update('compras', [
+            'id_proveedor'   => $id_proveedor ?: null,
+            'proveedor'      => $proveedor_texto,
+            'total'          => $total,
+            'estado'         => $estado
+        ]);
+
+        // 2) Reemplazar detalle (Borrar y re-insertar items)
+        $this->db->delete('compra_detalle', ['id_compra' => $id_compra]);
+        
+        foreach ($items as $it) {
+            $cantidad      = (float) $it['cantidad'];
+            $precio_compra = (float) $it['precio_compra'];
+            $id_producto   = (int)$it['id_producto'];
+
+            $this->db->insert('compra_detalle', [
+                'id_compra'     => $id_compra,
+                'id_producto'   => $id_producto,
+                'cantidad'      => $cantidad,
+                'precio_compra' => $precio_compra,
+                'subtotal'      => $cantidad * $precio_compra,
+                'talla'         => $it['talla'] ?? null,
+                'color'         => $it['color'] ?? null,
+                'diseno'        => $it['diseno'] ?? null,
+            ]);
+
+            // Si al actualizar pasamos a 'completada' (botón ejecutar desde form), procesamos stock
+            if ($estado === 'completada') {
+                $this->_procesar_stock_item($id_compra, $this->session->userdata('id_sucursal'), $id_producto, $cantidad);
+            }
+        }
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
+    /**
+     * Ejecuta una compra que estaba en estado borrador (Carga stock y kardex)
+     */
+    public function ejecutar_compra($id_compra)
+    {
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        list($compra, $detalles) = $this->get_compra_con_detalle($id_compra);
+
+        if (!$compra || $compra->estado !== 'borrador') return false;
+
+        $this->db->trans_start();
+
+        foreach ($detalles as $det) {
+            $this->_procesar_stock_item($id_compra, $id_sucursal, $det->id_producto, $det->cantidad);
+        }
+
+        $this->db->where('id', $id_compra);
+        $this->db->update('compras', ['estado' => 'completada']);
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
+    /**
+     * Helper privado para centralizar la actualización de stock y Kardex
+     */
+    private function _procesar_stock_item($id_compra, $id_sucursal, $id_producto, $cantidad)
+    {
+        // 1) Incrementar stock
+        $this->db->query("UPDATE productos SET stock = stock + ? WHERE id = ? AND id_sucursal = ?", 
+            [$cantidad, $id_producto, $id_sucursal]);
+
+        // 2) Obtener stock resultante para el historial
+        $producto = $this->db->get_where('productos', ['id' => $id_producto, 'id_sucursal' => $id_sucursal])->row();
+
+        // 3) Registrar en Kardex
+        $this->db->insert('kardex', [
+            'id_sucursal'      => $id_sucursal,
+            'id_producto'      => $id_producto,
+            'tipo_movimiento'  => 'Entrada',
+            'motivo'           => 'Compra',
+            'doc_tipo'         => 'Compra',
+            'doc_id'           => $id_compra,
+            'cantidad'         => $cantidad,
+            'stock_resultante' => $producto ? $producto->stock : 0,
+            'fecha'            => date('Y-m-d H:i:s'),
+        ]);
     }
 
     public function anular_compra($id_compra, $motivo)

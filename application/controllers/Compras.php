@@ -42,32 +42,33 @@ class Compras extends CI_Controller {
         $this->load->view('layouts/footer');
     }
 
-    // Guardar compra
+    // Guardar compra (Nueva o Editar)
     public function guardar()
     {
         $id_sucursal = $this->session->userdata('id_sucursal');
         $id_usuario  = $this->session->userdata('id');
 
-        $id_proveedor    = (int)$this->input->post('id_proveedor');   // FK a proveedores.id_proveedor
-        $proveedor_texto = $this->input->post('proveedor_texto');    // nombre impreso
-        
+        $id_compra       = $this->input->post('id_compra');           // Si viene, es edición de borrador
+        $id_proveedor    = (int)$this->input->post('id_proveedor');
+        $proveedor_texto = $this->input->post('proveedor_texto');
+        $accion          = $this->input->post('accion') ?: 'ejecutar'; // 'borrador' o 'ejecutar'
+        $estado          = ($accion === 'borrador') ? 'borrador' : 'completada';
+
         if ($id_proveedor && empty($proveedor_texto)) {
             $this->load->model('Proveedor_model');
             $prov = $this->Proveedor_model->get($id_proveedor);
-            if ($prov) {
-                $proveedor_texto = $prov->razon_social;
-            }
+            if ($prov) $proveedor_texto = $prov->razon_social;
         }
 
-        $ids_producto = $this->input->post('id_producto');   // array
-        $cantidades   = $this->input->post('cantidad');      // array
-        $precios      = $this->input->post('precio_compra'); // array
+        $ids_producto = $this->input->post('id_producto');
+        $cantidades   = $this->input->post('cantidad');
+        $precios      = $this->input->post('precio_compra');
 
         $items = [];
         if (is_array($ids_producto)) {
             for ($i = 0; $i < count($ids_producto); $i++) {
                 if (empty($ids_producto[$i])) continue;
-
+                
                 $prod_info = $this->db->select('talla, color, diseno')->from('productos')->where('id', (int)$ids_producto[$i])->get()->row();
                 
                 $items[] = [
@@ -86,20 +87,57 @@ class Compras extends CI_Controller {
             redirect('compras/nueva');
         }
 
-        $id_compra = $this->compra_m->registrar_compra(
-            $id_sucursal,
-            $id_usuario,
-            $id_proveedor ?: null,
-            $proveedor_texto,
-            $items
-        );
-
         if ($id_compra) {
-            $this->session->set_flashdata('msg', 'Compra registrada correctamente.');
+            // Actualizar borrador existente
+            $exito = $this->compra_m->actualizar_borrador($id_compra, $id_proveedor ?: null, $proveedor_texto, $items, $estado);
+            $msg = ($estado === 'borrador') ? 'Borrador actualizado.' : 'Compra ejecutada y stock cargado.';
         } else {
-            $this->session->set_flashdata('msg', 'Error al registrar la compra.');
+            // Nueva compra (Borrador o Directa)
+            $id_compra = $this->compra_m->registrar_compra($id_sucursal, $id_usuario, $id_proveedor ?: null, $proveedor_texto, $items, $estado);
+            $exito = $id_compra ? true : false;
+            $msg = ($estado === 'borrador') ? 'Borrador guardado correctamente.' : 'Compra registrada y stock cargado.';
         }
 
+        if ($exito) {
+            $this->session->set_flashdata('msg', $msg);
+        } else {
+            $this->session->set_flashdata('msg', 'Error al procesar la compra.');
+        }
+
+        redirect('compras/compras_index');
+    }
+
+    // Editar un borrador previo
+    public function editar($id_compra)
+    {
+        $id_sucursal = $this->session->userdata('id_sucursal');
+        list($compra, $detalles) = $this->compra_m->get_compra_con_detalle($id_compra);
+
+        if (!$compra || $compra->estado !== 'borrador') {
+            $this->session->set_flashdata('msg', 'Solo se pueden editar compras en estado borrador.');
+            redirect('compras/compras_index');
+        }
+
+        $data['titulo']      = 'Editar Borrador de Compra';
+        $data['proveedores'] = $this->compra_m->get_proveedores_activos();
+        $data['productos']   = $this->compra_m->get_productos_sucursal($id_sucursal);
+        $data['compra']      = $compra;
+        $data['detalles']    = $detalles;
+
+        $this->load->view('layouts/header', $data);
+        $this->load->view('layouts/sidebar');
+        $this->load->view('compras/form_compras', $data);
+        $this->load->view('layouts/footer');
+    }
+
+    // Ejecutar carga de stock desde el listado
+    public function ejecutar($id_compra)
+    {
+        if ($this->compra_m->ejecutar_compra($id_compra)) {
+            $this->session->set_flashdata('msg', 'Stock cargado correctamente. Compra completada.');
+        } else {
+            $this->session->set_flashdata('msg', 'Error al ejecutar la compra.');
+        }
         redirect('compras/compras_index');
     }
 
